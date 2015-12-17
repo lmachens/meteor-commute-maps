@@ -13,7 +13,12 @@ Package.describe({
 Package.onUse(function(api) {
   api.versionsFrom('1.2.1');
   api.use('ecmascript');
-  api.addFiles('commute-maps.js');
+  api.use('templating');
+  api.use('lmachens:google-maps-inverted-circle');
+  api.addFiles([
+   'commute-maps.html',
+   'commute-maps.js'
+  ], 'client');
 });
 
 Package.onTest(function(api) {

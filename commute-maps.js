@@ -28,6 +28,8 @@ CommuteMaps = {
 
       document.body.appendChild(script);
     });
+    LoadMarkerWithLabel();
+    LoadMarkerClusterer();
   },
   _ready: function(name, map) {
     _.each(this._callbacks[name], function(cb) {
@@ -57,11 +59,9 @@ CommuteMaps = {
     google.maps.event.addListener(options.instance, 'tilesloaded', function() {
       self._ready(name, self.maps[name]);
     });
+    return self.maps[name];
   },
   create: function(options) {
-    if (!_.isArray(options.options)) {
-      options.options = [];
-    }
     _.defaults(options.options, {
       zoom: 12,
       center: {lat: 52.5167, lng: 13.3833},
@@ -71,7 +71,7 @@ CommuteMaps = {
       panControl: false
     });
 
-    this._create(options.name, {
+    return this._create(options.name, {
       instance: new google.maps.Map(options.element, options.options),
       options: options.options
     });
@@ -80,35 +80,81 @@ CommuteMaps = {
 
 
 Template.commuteMaps.onRendered(function() {
+  if (! this.data.name) {
+    throw new Meteor.Error("CommuteMaps - Missing argument: name");
+  }
+
   var self = this;
   self.autorun(function(runFunc) {
     // Check if CommuteMaps has loaded
     if (CommuteMaps.loaded()) {
-      var data = Template.currentData();
-
-      if (! data.name) {
-        throw new Meteor.Error("CommuteMaps - Missing argument: name");
+      if (CommuteMaps.get(self.data.name)) {
+        throw new Meteor.Error("CommuteMaps - Name already exists");
       }
 
-      self._name = data.name;
+      if (!_.isArray(self.data.options)) {
+        self.data.options = {};
+      }
+      // open last active tab
+      if (Session.get(self.data.name + '-boundsMode') == 'time') {
+        $('.nav-tabs a[href="#byTravelTime-' + self.data.name + '"]').tab('show');
+        self.data.options.commuteMode = 'byTime';
+      } else {
+        $('.nav-tabs a[href="#byDistance-' + self.data.name + '"]').tab('show');
+        self.data.options.commuteMode = 'byDistance';
+      }
 
-      var canvas = document.getElementById('map-' + data.name);
+      var canvas = document.getElementById('map-' + self.data.name);
 
-      CommuteMaps.create({
-        name: data.name,
+      self._map = CommuteMaps.create({
+        name: self.data.name,
         element: canvas,
-        options: data.options
+        options: self.data.options
+      });
+
+      // observe markers collection
+      Tracker.autorun(function(subRunFunc) {
+        if (self._observe) {
+          self._observe.stop();
+        }
+        self._observe = self.data.markers.observe({
+          removed: function (marker) {
+            self._map.removeMarker(marker);
+            console.log(marker);
+          },
+          added: function(marker, index) {
+            self._map.addMarker(marker);
+            console.log(marker);
+          }
+        });
       });
 
       runFunc.stop();
     }
   });
+
+  var rangeSliderValue = Session.get(this.data.name + '-rangeSliderValue');
+  $('#byTimeMinutes-' + this.data.name).ionRangeSlider({
+    min: 5,
+    max: 60,
+    from: rangeSliderValue ? rangeSliderValue : 20,
+    prefix: 'bis ',
+    postfix: ' Minuten',
+    hide_min_max: true,
+    grid: false,
+    onFinish: function (data) {
+      Session.set(self.data.name + '-rangeSliderValue', data.from);
+    }
+  });
 });
 
 Template.commuteMaps.onDestroyed(function() {
-  if (CommuteMaps[this._name]) {
-    google.maps.event.clearInstanceListeners(CommuteMaps.maps[this._name].instance);
-    delete CommuteMaps.maps[this._name];
+  if (this._map) {
+    google.maps.event.clearInstanceListeners(CommuteMaps.maps[this.data.name].instance);
+    delete CommuteMaps.maps[this.data.name];
+  }
+  if (this._observe) {
+    this._observe.stop();
   }
 });
 
@@ -137,10 +183,10 @@ Template.commuteMaps.helpers({
 });
 
 Template.commuteMaps.events({
-  'click .zoom .in': function (e, t) {
-    CommuteMaps.get(t.data.name).zoomIn();
+  'click .zoomControls .in': function (e, t) {
+    t._map.zoomIn();
   },
-  'click .zoom .out': function (e, t) {
-    CommuteMaps.get(t.data.name).zoomOut();
+  'click .zoomControls .out': function (e, t) {
+    t._map.zoomOut();
   }
 });

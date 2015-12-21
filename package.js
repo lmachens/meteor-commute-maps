@@ -21,10 +21,23 @@ Package.onUse(function(api) {
     'underscore']);
   api.addFiles([
    'commute-maps.html',
+   'commute-maps.css',
    'commute-maps.js',
-   'commute-map.js'
+   'commute-map.js',
+   'lib/markerwithlabel.js',
+   'lib/markerclusterer.js'
   ], 'client');
-  api.export('CommuteMaps', 'client');
+  api.addAssets([
+   'images/clusterer.png',
+   'images/clusterer_active.png',
+   'images/clusterer_highlighted.png'
+  ], 'client');
+  api.export([
+    'CommuteMaps',
+    'CommuteMap',
+    'LoadMarkerWithLabel',
+    'LoadMarkerClusterer'
+  ], 'client');
 });
 
 Package.onTest(function(api) {

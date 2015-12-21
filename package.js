@@ -12,13 +12,19 @@ Package.describe({
 
 Package.onUse(function(api) {
   api.versionsFrom('1.2.1');
-  api.use('ecmascript');
-  api.use('templating');
-  api.use('lmachens:google-maps-inverted-circle');
+  api.use([
+    'ecmascript',
+    'templating',
+    'lmachens:google-maps-inverted-circle',
+    'twbs:bootstrap',
+    'reactive-var',
+    'underscore']);
   api.addFiles([
    'commute-maps.html',
-   'commute-maps.js'
+   'commute-maps.js',
+   'commute-map.js'
   ], 'client');
+  api.export('CommuteMaps', 'client');
 });
 
 Package.onTest(function(api) {

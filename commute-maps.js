@@ -1,7 +1,7 @@
 CommuteMaps = {
   // Loads Maps once
   load: _.once(function(options) {
-    options = _.extend({ v: '3.exp' }, options);
+    options = _.extend({ v: '3.exp', libraries: 'places,geometry'}, options);
     var params = _.map(options, function(value, key) { return key + '=' + value; }).join('&');
     var script = document.createElement('script');
     script.type = 'text/javascript';
@@ -30,6 +30,7 @@ CommuteMaps = {
     });
     LoadMarkerWithLabel();
     LoadMarkerClusterer();
+    InitInvertedCircle();
   },
   _ready: function(name, map) {
     _.each(this._callbacks[name], function(cb) {
@@ -53,7 +54,8 @@ CommuteMaps = {
     var self = this;
     self.maps[name] = new CommuteMap (
       options.instance,
-      options.options
+      options.options,
+      options.callbacks
     );
 
     google.maps.event.addListener(options.instance, 'tilesloaded', function() {
@@ -64,16 +66,74 @@ CommuteMaps = {
   create: function(options) {
     _.defaults(options.options, {
       zoom: 12,
+      minZoom: 9,
+      maxZoom: 18,
       center: {lat: 52.5167, lng: 13.3833},
+      mapTypeId: google.maps.MapTypeId.ROADMAP,
       zoomControl: false,
       streetViewControl: false,
       mapTypeControl: false,
-      panControl: false
+      panControl: false,
+      styles: [
+        {
+          'featureType': 'landscape',
+          'elementType': 'labels',
+          'stylers': [
+            {
+              'visibility': 'off'
+            }
+          ]
+        }, {
+          'featureType': 'poi',
+          'elementType': 'labels',
+          'stylers': [
+            {
+              'visibility': 'off'
+            }
+          ]
+        }, {
+          'featureType': 'road',
+          'elementType': 'geometry',
+          'stylers': [
+            {
+              'lightness': 57
+            }
+          ]
+        }, {
+          'featureType': 'road',
+          'elementType': 'labels.text.fill',
+          'stylers': [
+            {
+              'visibility': 'on'
+            }, {
+              'lightness': 24
+            }
+          ]
+        }, {
+          'featureType': 'road',
+          'elementType': 'labels.icon',
+          'stylers': [
+            {
+              'visibility': 'off'
+            }
+          ]
+        }, {
+          'featureType': 'water',
+          'elementType': 'labels',
+          'stylers': [
+            {
+              'visibility': 'off'
+            }
+          ]
+        }
+      ]
     });
 
     return this._create(options.name, {
       instance: new google.maps.Map(options.element, options.options),
-      options: options.options
+      center: options.center,
+      options: options.options,
+      callbacks: options.callbacks
     });
   }
 }
@@ -109,24 +169,18 @@ Template.commuteMaps.onRendered(function() {
       self._map = CommuteMaps.create({
         name: self.data.name,
         element: canvas,
-        options: self.data.options
+        options: self.data.options,
+        callbacks: self.data.callbacks
       });
 
       // observe markers collection
-      Tracker.autorun(function(subRunFunc) {
-        if (self._observe) {
-          self._observe.stop();
+      self._observe = self.data.markers.observe({
+        removed: function (marker) {
+          self._map.removeMarker(marker);
+        },
+        added: function(marker, index) {
+          self._map.addMarker(marker);
         }
-        self._observe = self.data.markers.observe({
-          removed: function (marker) {
-            self._map.removeMarker(marker);
-            console.log(marker);
-          },
-          added: function(marker, index) {
-            self._map.addMarker(marker);
-            console.log(marker);
-          }
-        });
       });
 
       runFunc.stop();

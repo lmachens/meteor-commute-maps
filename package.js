@@ -30,7 +30,9 @@ Package.onUse(function(api) {
   api.addAssets([
    'images/clusterer.png',
    'images/clusterer_active.png',
-   'images/clusterer_highlighted.png'
+   'images/clusterer_highlighted.png',
+   'images/center.png',
+   'images/resize_leftright.png'
   ], 'client');
   api.export([
     'CommuteMaps',

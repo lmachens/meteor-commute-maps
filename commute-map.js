@@ -1,4 +1,4 @@
-CommuteMap = function(instance, options, callbacks) {
+CommuteMap = function(instance, options, callbacks, features) {
   var self = this;
   this.instance = instance;
   _.defaults(options, {
@@ -150,6 +150,13 @@ CommuteMap = function(instance, options, callbacks) {
           radius: radius
         });
       }, 200)
+    });
+  }
+
+  // add features like neighbourhoods
+  if (features) {
+    _.each(features, function(feature) {
+      self.instance.data.addGeoJson(feature);
     });
   }
 }

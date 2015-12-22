@@ -55,7 +55,8 @@ CommuteMaps = {
     self.maps[name] = new CommuteMap (
       options.instance,
       options.options,
-      options.callbacks
+      options.callbacks,
+      options.features
     );
 
     google.maps.event.addListener(options.instance, 'tilesloaded', function() {
@@ -133,11 +134,11 @@ CommuteMaps = {
       instance: new google.maps.Map(options.element, options.options),
       center: options.center,
       options: options.options,
-      callbacks: options.callbacks
+      callbacks: options.callbacks,
+      features: options.features
     });
   }
 }
-
 
 Template.commuteMaps.onRendered(function() {
   if (! this.data.name) {
@@ -145,6 +146,7 @@ Template.commuteMaps.onRendered(function() {
   }
 
   var self = this;
+
   self.autorun(function(runFunc) {
     // Check if CommuteMaps has loaded
     if (CommuteMaps.loaded()) {
@@ -170,7 +172,8 @@ Template.commuteMaps.onRendered(function() {
         name: self.data.name,
         element: canvas,
         options: self.data.options,
-        callbacks: self.data.callbacks
+        callbacks: self.data.callbacks,
+        features: self.data.features
       });
 
       // observe markers collection
@@ -183,7 +186,8 @@ Template.commuteMaps.onRendered(function() {
         }
       });
 
-      runFunc.stop();
+      // would like to stop the autorun but this would stop observing too
+      //runFunc.stop();
     }
   });
 

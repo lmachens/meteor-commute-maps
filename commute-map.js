@@ -71,14 +71,15 @@ CommuteMap = function(instance, options, callbacks, features) {
         stroke_weight: 3,
         stroke_color: '#4E87B6',
         resize_leftright: '/packages/lmachens_commute-maps/images/resize_leftright.png'
-      }
+      },
+      useMiles: false
   });
   this.options = options;
 
   _.defaults(callbacks, {
     markerSelected: function(marker) {},
     markerDeselected: function(marker) {},
-    boundsChanged: function(bounds) {}
+    geospatialQueryChanged: function(geospatialQuery) {}
   });
   this.callbacks = callbacks;
 
@@ -86,6 +87,12 @@ CommuteMap = function(instance, options, callbacks, features) {
 
   if (options.useClustering) {
     this.initClusterer();
+  }
+
+  if (options.useMiles) {
+    this.earthDistance =  3963.2; // miles
+  } else {
+    this.earthDistance = 6378100; // meters
   }
 
   // workaround for overlapping marker labels
@@ -101,6 +108,9 @@ CommuteMap = function(instance, options, callbacks, features) {
 
   // listens when map changes location or zoom
   this.instance.addListener('bounds_changed', function() {
+    if (options.boundsMode === 'byDistance') {
+      return;
+    }
     var bounds = this.getBounds();
     // get corners
     var ne = bounds.getNorthEast()
@@ -111,11 +121,19 @@ CommuteMap = function(instance, options, callbacks, features) {
       self.callbacks.markerDeselected(self.selectedMarker);
     }
 
-    self.callbacks.boundsChanged({
-      north: ne.lat(),
-      east: ne.lng(),
-      south: sw.lat(),
-      west: sw.lng()
+    self.callbacks.geospatialQueryChanged({
+      $geoWithin: {
+        $geometry: {
+          type : "Polygon" ,
+          coordinates: [ [
+            [sw.lng(), sw.lat()], // SW
+            [sw.lng(), ne.lat()], // NW
+            [ne.lng(), ne.lat()], // NE
+            [ne.lng(), sw.lat()], // SE
+            [sw.lng(), sw.lat()]  // SW (close polygon)
+          ] ]
+        }
+      }
     });
   });
 
@@ -132,22 +150,24 @@ CommuteMap = function(instance, options, callbacks, features) {
       resize_leftright: options.boundsByDistanceStyle.resize_leftright,
       center_icon: options.centerMarkerStyle,
       position_changed_event: _.throttle(function(position) {
-        self.callbacks.boundsChanged({
-          center: {
-            lat: position.lat(),
-            lng: position.lng()
-          },
-          radius: self.centerMarker.getRadius()
+        self.callbacks.geospatialQueryChanged({
+          $geoWithin: {
+            $centerSphere: [
+              [ position.lng(), position.lat() ],
+              self.centerMarker.getRadius() / self.earthDistance
+            ]
+          }
         });
       }, 200),
       radius_changed_event: _.throttle(function(radius) {
         var center = self.centerMarker.getCenter();
-        self.callbacks.boundsChanged({
-          center: {
-            lat: center.lat(),
-            lng: center.lng()
-          },
-          radius: radius
+        self.callbacks.geospatialQueryChanged({
+          $geoWithin: {
+            $centerSphere: [
+              [ center.lng(), center.lat() ],
+              radius / self.earthDistance
+            ]
+          }
         });
       }, 200)
     });
@@ -226,7 +246,7 @@ CommuteMap.prototype.zoomOut = function() {
 CommuteMap.prototype.addMarker = function(markerProperties) {
   if (this.options.mergeMarkers) {
     // check if a marker was added on same position
-    var pairedCoordinates = markerProperties.position.pairedCoordinates;
+    var pairedCoordinates = markerProperties.pairedCoordinates;
     if (this.markers[pairedCoordinates]) {
       this.markers[pairedCoordinates].markerIDs.push(markerProperties._id);
     } else {
@@ -245,8 +265,28 @@ CommuteMap.prototype.addMarker = function(markerProperties) {
   }
 }
 
-CommuteMap.prototype.removeMarker = function(marker) {
+CommuteMap.prototype.removeMarker = function(markerProperties) {
+  var marker = this.markers[markerProperties.pairedCoordinates];
+  if (marker) {
+    var index = marker.markerIDs.indexOf(markerProperties._id);
+    if (index > -1) {
+      marker.markerIDs.splice(index, 1);
+      // update number of flats in marker
+      var numberOfMarkerIDs = marker.markerIDs.length;
+      marker.set('labelContent', numberOfMarkerIDs.toString());
+      if (numberOfMarkerIDs < 10) {
+        marker.set('labelAnchor', new google.maps.Point(3, 7));
+      }
 
+      // remove Marker if empty
+      if (marker.markerIDs.length == 0) {
+        marker.setMap(null);
+        // remove marker from clusterer
+        this.markerClusterer.removeMarker(marker);
+        delete this.markers[markerProperties.pairedCoordinates];
+      }
+    }
+  }
 }
 
 CommuteMap.prototype.createMarker = function(options) {
@@ -254,7 +294,7 @@ CommuteMap.prototype.createMarker = function(options) {
   var markerWithLabel = new MarkerWithLabel({
     position: new google.maps.LatLng(options.position.coordinates[1], options.position.coordinates[0]),
     map: this.instance,
-    pairedCoordinates: options.position.pairedCoordinates,
+    pairedCoordinates: options.pairedCoordinates,
     markerIDs: [options._id],
     iconScale: this.options.markerStyles.default.scale,
     icon: this.options.markerStyles.default,

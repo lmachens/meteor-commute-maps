@@ -176,6 +176,10 @@ Template.commuteMaps.onRendered(function() {
         features: self.data.features
       });
 
+      // set commute box depending on options
+      var travelMode = self._map.getTravelMode();
+      $('a[data-travel-mode="' + travelMode + '"]').addClass('active');
+
       // observe markers collection
       self._observe = self.data.markers.observe({
         removed: function (marker) {
@@ -246,5 +250,19 @@ Template.commuteMaps.events({
   },
   'click .zoomControls .out': function (e, t) {
     t._map.zoomOut();
+  },
+  'click .showAllMarkers': function(e, t) {
+    t._map.callbacks.showHiddenMarkersChanged(e.target.checked);
+  },
+  'click a[data-travel-mode]': function (e, t) {
+    $('a[data-travel-mode]').each(function() {
+      $(this).removeClass('active');
+    });
+    $(e.currentTarget).addClass('active');
+    //$(e.currentTarget).toggleClass('active');
+    var travelMode = $(e.currentTarget).data('travel-mode');
+    var isActive = $(e.currentTarget).hasClass('active');
+    t._map.setTravelMode(travelMode);
+    e.currentTarget.blur();
   }
 });

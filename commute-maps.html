@@ -2,7 +2,7 @@
   <div class="commuteMapsContainer">
     <div id="map-{{name}}" style="width: 100%; height: 100%"></div>
 
-    {{#unless hideZoomControls}}
+    {{#unless options.hideZoomControls}}
     <div id="zoomControls-{{name}}" class="zoomControls">
       <div class="in">
         <i class="fa fa-plus"></i>
@@ -13,8 +13,9 @@
     </div>
     {{/unless}}
 
-    {{#unless hideCommuteBox}}
+    {{#unless options.hideCommuteBox}}
     <div id="commuteBox-{{name}}" class="commuteBox">
+      <!--
       <ul class="nav nav-tabs" role="tablist">
         <li role="presentation">
           <a href="#byDistance-{{name}}" aria-controls="byDistance-{{name}}" role="tab" data-toggle="tab">
@@ -30,29 +31,36 @@
 
       <div class="tab-content">
         <div id="byDistance-{{name}}" role="tabpanel" class="tab-pane fade">
-          <label>
-            <input type="checkbox"> {{showAllMarkersLabel}}
-          </label>
+          -->
+          <div class="checkbox">
+            <label>
+              <input class="showAllMarkers" type="checkbox"> {{showAllMarkersLabel}}
+            </label>
+          </div>
+          <!--
         </div>
 
         <div id="byTravelTime-{{name}}" role="tabpanel" class="tab-pane fade">
           <input id="byTimeMinutes-{{name}}">
-          <div class="btn-group">
-            <a data-travel-mode="traffic" class="btn btn-default" href="#">
+          -->
+          <div class="btn-group travelModes">
+            <a data-travel-mode="DRIVING" class="btn btn-default" href="#">
               <i class="fa fa-car fa-lg"></i>
             </a>
-            <a data-travel-mode="transit" class="btn btn-default" href="#">
+            <a data-travel-mode="TRANSIT" class="btn btn-default" href="#">
               <i class="fa fa-train fa-lg"></i>
             </a>
-            <a data-travel-mode="walking" class="btn btn-default" href="#">
+            <a data-travel-mode="WALKING" class="btn btn-default" href="#">
               <i class="fa fa-male fa-lg"></i>
             </a>
-            <a data-travel-mode="bicycling" class="btn btn-default" href="#">
+            <a data-travel-mode="BICYCLING" class="btn btn-default" href="#">
               <i class="fa fa-bicycle fa-lg"></i>
             </a>
           </div>
+          <!--
         </div>
       </div>
+      -->
     </div>
     {{/unless}}
   </div>

@@ -2,84 +2,89 @@ CommuteMap = function(instance, options, callbacks, features) {
   var self = this;
   this.instance = instance;
   _.defaults(options, {
-      mergeMarkers: true,
-      markerStyles: {
-        default: {
-          fillColor: '#2c577d',
-          fillOpacity: 1,
-          strokeColor: '#fff',
-          strokeOpacity: 1,
-          strokeWeight: 1.3,
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 12
-        },
-        active: {
-          fillColor: '#fff',
-          fillOpacity: 1,
-          strokeColor: '#2c577d',
-          strokeOpacity: 1,
-          strokeWeight: 1.3,
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 15
-        },
-        highlighted: {
-          fillColor: '#fff',
-          fillOpacity: 1,
-          strokeColor: '#2c577d',
-          strokeOpacity: 1,
-          strokeWeight: 1.3,
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 12
-        }
+    mergeMarkers: true,
+    markerStyles: {
+      default: {
+        fillColor: '#2c577d',
+        fillOpacity: 1,
+        strokeColor: '#fff',
+        strokeOpacity: 1,
+        strokeWeight: 1.3,
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 12
       },
-      useClustering: true,
-      clustererAverageCenter: true,
-      clustererMaxZoom: 13,
-      clustererStyles: {
-        default: {
-          url: '/packages/lmachens_commute-maps/images/clusterer.png',
-          textColor: '#fff',
-          backgroundPosition: '0 0',
-          width: 53,
-          height: 52
-        },
-        active: {
-          url: '/packages/lmachens_commute-maps/images/clusterer_active.png',
-          textColor: '#2c577d',
-          backgroundPosition: '0 0',
-          width: 55,
-          height: 54
-        },
-        highlighted: {
-          url: '/packages/lmachens_commute-maps/images/clusterer_highlighted.png',
-          textColor: '#2c577d',
-          backgroundPosition: '0 0',
-          width: 55,
-          height: 54
-        }
+      active: {
+        fillColor: '#fff',
+        fillOpacity: 1,
+        strokeColor: '#2c577d',
+        strokeOpacity: 1,
+        strokeWeight: 1.3,
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 15
       },
-      showCenterMarker: true,
-      centerMarkerStyle: {
-        url: '/packages/lmachens_commute-maps/images/center.png',
-        size: new google.maps.Size(27, 27),
-        origin: new google.maps.Point(0,0),
-        anchor: new google.maps.Point(15, 15)
+      highlighted: {
+        fillColor: '#fff',
+        fillOpacity: 1,
+        strokeColor: '#2c577d',
+        strokeOpacity: 1,
+        strokeWeight: 1.3,
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 12
+      }
+    },
+    useClustering: true,
+    clustererAverageCenter: true,
+    clustererMaxZoom: 13,
+    clustererStyles: {
+      default: {
+        url: '/packages/lmachens_commute-maps/images/clusterer.png',
+        textColor: '#fff',
+        backgroundPosition: '0 0',
+        width: 53,
+        height: 52
       },
-      boundsMode: 'byDistance',
-      distanceRadius: 2000,
-      boundsByDistanceStyle: {
-        stroke_weight: 3,
-        stroke_color: '#4E87B6',
-        resize_leftright: '/packages/lmachens_commute-maps/images/resize_leftright.png'
+      active: {
+        url: '/packages/lmachens_commute-maps/images/clusterer_active.png',
+        textColor: '#2c577d',
+        backgroundPosition: '0 0',
+        width: 55,
+        height: 54
       },
-      useMiles: false
+      highlighted: {
+        url: '/packages/lmachens_commute-maps/images/clusterer_highlighted.png',
+        textColor: '#2c577d',
+        backgroundPosition: '0 0',
+        width: 55,
+        height: 54
+      }
+    },
+    showCenterMarker: true,
+    centerMarkerStyle: {
+      url: '/packages/lmachens_commute-maps/images/center.png',
+      size: new google.maps.Size(27, 27),
+      origin: new google.maps.Point(0,0),
+      anchor: new google.maps.Point(15, 15)
+    },
+    boundsMode: 'byDistance',
+    distanceRadius: 2000,
+    boundsByDistanceStyle: {
+      stroke_weight: 3,
+      stroke_color: '#4E87B6',
+      resize_leftright: '/packages/lmachens_commute-maps/images/resize_leftright.png'
+    },
+    useMiles: false,
+    boundsModeZoomThreshhold: 11,
+    travelMode: 'DRIVING'
   });
   this.options = options;
 
   _.defaults(callbacks, {
     markerSelected: function(marker) {},
     markerDeselected: function(marker) {},
-    geospatialQueryChanged: function(geospatialQuery) {}
+    mapBoundsChanged: function(geospatialQuery, primaryBounds) {},
+    distanceBoundsChanged: function(geospatialQuery, primaryBounds) {},
+    showHiddenMarkersChanged: function(showHiddenMarkers) {},
+    travelModeChanged: function(travelMode) {}
   });
   this.callbacks = callbacks;
 
@@ -103,14 +108,14 @@ CommuteMap = function(instance, options, callbacks, features) {
   this.instance.addListener('click', function() {
     if (self.selectedMarker) {
       self.deselectSelectedMarker();
+      self.hideRoute();
     }
   });
 
   // listens when map changes location or zoom
   this.instance.addListener('bounds_changed', function() {
-    if (options.boundsMode === 'byDistance') {
-      return;
-    }
+    var primaryBounds = self.instance.getZoom() <= options.boundsModeZoomThreshhold;
+
     var bounds = this.getBounds();
     // get corners
     var ne = bounds.getNorthEast()
@@ -121,7 +126,7 @@ CommuteMap = function(instance, options, callbacks, features) {
       self.callbacks.markerDeselected(self.selectedMarker);
     }
 
-    self.callbacks.geospatialQueryChanged({
+    self.callbacks.mapBoundsChanged({
       $geoWithin: {
         $geometry: {
           type : "Polygon" ,
@@ -134,13 +139,23 @@ CommuteMap = function(instance, options, callbacks, features) {
           ] ]
         }
       }
-    });
+    }, primaryBounds);
+  });
+
+  this.instance.addListener('zoom_changed', function() {
+    var visible = this.getZoom() > options.boundsModeZoomThreshhold;
+    // center invertedCircle if it is getting visible
+    if (visible && !self.centerMarker.getVisible()) {
+      self.centerMarker.setCenter(self.instance.getCenter());
+    }
+    // set invertedCircle visible depending on zoom level
+    self.centerMarker.setVisible(visible);
   });
 
   if (options.showCenterMarker) {
     this.centerMarker = new InvertedCircle({
       map: this.instance,
-      visible: options.boundsMode === 'byDistance',
+      visible: options.boundsMode === 'byDistance' && this.instance.getZoom() > options.boundsModeZoomThreshhold,
       center: new google.maps.LatLng(options.center),
       radius: options.distanceRadius,
       draggable: true,
@@ -150,7 +165,7 @@ CommuteMap = function(instance, options, callbacks, features) {
       resize_leftright: options.boundsByDistanceStyle.resize_leftright,
       center_icon: options.centerMarkerStyle,
       position_changed_event: _.throttle(function(position) {
-        self.callbacks.geospatialQueryChanged({
+        self.callbacks.distanceBoundsChanged({
           $geoWithin: {
             $centerSphere: [
               [ position.lng(), position.lat() ],
@@ -158,10 +173,11 @@ CommuteMap = function(instance, options, callbacks, features) {
             ]
           }
         });
+        self.displayRoute();
       }, 200),
       radius_changed_event: _.throttle(function(radius) {
         var center = self.centerMarker.getCenter();
-        self.callbacks.geospatialQueryChanged({
+        self.callbacks.distanceBoundsChanged({
           $geoWithin: {
             $centerSphere: [
               [ center.lng(), center.lat() ],
@@ -171,6 +187,16 @@ CommuteMap = function(instance, options, callbacks, features) {
         });
       }, 200)
     });
+    if (this.centerMarker.getVisible()) {
+      this.callbacks.distanceBoundsChanged({
+        $geoWithin: {
+          $centerSphere: [
+            [ options.center.lng, options.center.lat ],
+            options.distanceRadius / self.earthDistance
+          ]
+        }
+      });
+    }
   }
 
   // add features like neighbourhoods
@@ -179,6 +205,22 @@ CommuteMap = function(instance, options, callbacks, features) {
       self.instance.data.addGeoJson(feature);
     });
   }
+
+  // Init directions renderer and travel modes
+  self.directionsDisplay = new google.maps.DirectionsRenderer({
+    suppressMarkers: true,
+    suppressInfoWindows: false,
+    preserveViewport: true
+  });
+
+  self.directionsService = new google.maps.DirectionsService();
+  self.directionsDisplay.setMap(this.instance);
+  self.directionsInfoWindow = new google.maps.InfoWindow();
+
+  // hide x-button in infoWindow (not the best solution..)
+  google.maps.event.addListener(this.directionsInfoWindow, 'domready', function() {
+    $(".gm-style-iw").next("div").hide();
+  });
 }
 
 CommuteMap.prototype.initClusterer = function() {
@@ -326,10 +368,12 @@ CommuteMap.prototype.createMarker = function(options) {
     if (this === self.selectedMarker) {
       self.selectedMarker = null;
       self.callbacks.markerDeselected(this);
+      self.hideRoute();
     } else {
       self.selectMarker(this);
       self.selectedMarker = this;
       self.callbacks.markerSelected(this);
+      self.displayRoute();
     }
   });
 
@@ -402,4 +446,52 @@ CommuteMap.prototype.lowlightMarker = function(marker) {
       this.lowlightCluster(cluster);
     }
   }
+}
+
+CommuteMap.prototype.setTravelMode = function(travelMode, isActive) {
+  this.options.travelMode = travelMode;
+  this.displayRoute();
+  this.callbacks.travelModeChanged(travelMode);
+}
+
+CommuteMap.prototype.getTravelMode = function() {
+  return this.options.travelMode;
+}
+
+CommuteMap.prototype.displayRoute = function() {
+  if (!this.selectedMarker || !this.centerMarker.getVisible()) {
+    return;
+  }
+  var self = this;
+  this.directionsService.route({
+    origin: this.centerMarker.position,
+    destination: this.selectedMarker.position,
+    travelMode: google.maps.TravelMode[this.options.travelMode]
+  }, function (response, status) {
+    if (status == google.maps.DirectionsStatus.OK) {
+      self.directionsDisplay.setDirections(response);
+      var content = self.createInfoWindowContent(response);
+      self.directionsDisplay.setMap(self.instance);
+      self.directionsInfoWindow.setContent(content);
+      self.directionsInfoWindow.open(self.instance, self.selectedMarker);
+    }
+  });
+}
+
+CommuteMap.prototype.createInfoWindowContent = function(data) {
+  var route = data.routes[0].legs[0];
+  var icon = '';
+  switch (data.request.travelMode) {
+    case 'DRIVING': icon = 'fa fa-car fa-lg'; break;
+    case 'TRANSIT': icon = 'fa fa-train fa-lg'; break;
+    case 'WALKING': icon = 'fa fa-male fa-lg'; break;
+    case 'BICYCLING': icon = 'fa fa-bicycle fa-lg'; break;
+  }
+
+  return '<i class="' + icon + '"></i> <b>' + route.distance.text + '</b><br>' + route.duration.text;
+}
+
+CommuteMap.prototype.hideRoute = function() {
+  this.directionsDisplay.setMap(null);
+  this.directionsInfoWindow.close();
 }

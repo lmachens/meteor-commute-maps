@@ -34,7 +34,7 @@ CommuteMap = function(instance, options, callbacks, features) {
     },
     useClustering: true,
     clustererAverageCenter: true,
-    clustererMaxZoom: 13,
+    clustererMaxZoom: 11,
     clustererStyles: {
       default: {
         url: '/packages/lmachens_commute-maps/images/clusterer.png',
@@ -84,11 +84,13 @@ CommuteMap = function(instance, options, callbacks, features) {
     mapBoundsChanged: function(geospatialQuery, primaryBounds) {},
     distanceBoundsChanged: function(geospatialQuery, primaryBounds) {},
     showHiddenMarkersChanged: function(showHiddenMarkers) {},
-    travelModeChanged: function(travelMode) {}
+    travelModeChanged: function(travelMode) {},
+    showcaseMarkers: function(id, infos) {}
   });
   this.callbacks = callbacks;
 
   this.markers = {};
+  this.showcaseMarkers = {};
 
   if (options.useClustering) {
     this.initClusterer();
@@ -147,6 +149,11 @@ CommuteMap = function(instance, options, callbacks, features) {
     // center invertedCircle if it is getting visible
     if (visible && !self.centerMarker.getVisible()) {
       self.centerMarker.setCenter(self.instance.getCenter());
+      self.getMarkerInfosMatrix();
+    } else if (!visible && self.centerMarker.getVisible()){
+      _.each(self.showcaseMarkers, function(marker) {
+        self.callbacks.showcaseMarkersInfos(marker._id);
+      });
     }
     // set invertedCircle visible depending on zoom level
     self.centerMarker.setVisible(visible);
@@ -187,6 +194,7 @@ CommuteMap = function(instance, options, callbacks, features) {
         });
       }, 200)
     });
+
     if (this.centerMarker.getVisible()) {
       this.callbacks.distanceBoundsChanged({
         $geoWithin: {
@@ -214,13 +222,14 @@ CommuteMap = function(instance, options, callbacks, features) {
   });
 
   self.directionsService = new google.maps.DirectionsService();
+  self.distanceMatrixService = new google.maps.DistanceMatrixService();
   self.directionsDisplay.setMap(this.instance);
   self.directionsInfoWindow = new google.maps.InfoWindow();
 
   // hide x-button in infoWindow (not the best solution..)
-  google.maps.event.addListener(this.directionsInfoWindow, 'domready', function() {
+  /*google.maps.event.addListener(this.directionsInfoWindow, 'domready', function() {
     $(".gm-style-iw").next("div").hide();
-  });
+  });*/
 }
 
 CommuteMap.prototype.initClusterer = function() {
@@ -322,6 +331,11 @@ CommuteMap.prototype.removeMarker = function(markerProperties) {
 
       // remove Marker if empty
       if (marker.markerIDs.length == 0) {
+        // hide route if marker was selected
+        if (marker === this.selectedMarker) {
+          this.selectedMarker = null;
+          this.hideRoute();
+        }
         marker.setMap(null);
         // remove marker from clusterer
         this.markerClusterer.removeMarker(marker);
@@ -433,6 +447,10 @@ CommuteMap.prototype.highlightMarker = function(marker) {
   }
 }
 
+CommuteMap.prototype.highlightMarkerByCoordinates = function(pairedCoordinates) {
+  this.highlightMarker(this.markers[pairedCoordinates]);
+}
+
 CommuteMap.prototype.lowlightMarker = function(marker) {
   marker.setIcon(this.options.markerStyles.default);
   marker.set('labelStyle', {});
@@ -448,10 +466,17 @@ CommuteMap.prototype.lowlightMarker = function(marker) {
   }
 }
 
+CommuteMap.prototype.lowlightMarkerByCoordinates = function(pairedCoordinates) {
+  this.lowlightMarker(this.markers[pairedCoordinates]);
+}
+
 CommuteMap.prototype.setTravelMode = function(travelMode, isActive) {
+  var self = this;
   this.options.travelMode = travelMode;
   this.displayRoute();
   this.callbacks.travelModeChanged(travelMode);
+  // refresh showcase markers
+  this.getMarkerInfosMatrix();
 }
 
 CommuteMap.prototype.getTravelMode = function() {
@@ -468,7 +493,7 @@ CommuteMap.prototype.displayRoute = function() {
     destination: this.selectedMarker.position,
     travelMode: google.maps.TravelMode[this.options.travelMode]
   }, function (response, status) {
-    if (status == google.maps.DirectionsStatus.OK) {
+    if (status == google.maps.DirectionsStatus.OK && self.selectedMarker) {
       self.directionsDisplay.setDirections(response);
       var content = self.createInfoWindowContent(response);
       self.directionsDisplay.setMap(self.instance);
@@ -495,3 +520,69 @@ CommuteMap.prototype.hideRoute = function() {
   this.directionsDisplay.setMap(null);
   this.directionsInfoWindow.close();
 }
+
+CommuteMap.prototype.addShowcaseMarker = function(marker) {
+  var self = this;
+  this.showcaseMarkers[marker._id] = marker;
+  // wait for other markers before calling getMarkerInfosMatrix
+  if (!this.getMarkerInfosMatrixCalled) {
+    this.getMarkerInfosMatrixCalled = true;
+    _.delay(function() {
+      self.getMarkerInfosMatrix(marker);
+      self.getMarkerInfosMatrixCalled = false;
+    }, 200);
+  }
+}
+
+CommuteMap.prototype.removeShowcaseMarkerById = function(id) {
+    delete this.showcaseMarkers[id];
+}
+
+/*CommuteMap.prototype.getMarkerInfos = _.rateLimit(function(marker) {
+  var self = this;
+  if (!this.centerMarker.getVisible()) {
+    return;
+  }
+ this.directionsService.route({
+    origin: self.centerMarker.position,
+    destination: new google.maps.LatLng(marker.position.coordinates[1], marker.position.coordinates[0]),
+    travelMode: google.maps.TravelMode[this.options.travelMode]
+  }, function (response, status) {
+    if (status == google.maps.DirectionsStatus.OK && marker) {
+      var route = response.routes[0].legs[0];
+      self.callbacks.showcaseMarkersInfos(marker._id, {
+        travelMode: response.request.travelMode,
+        distance: route.distance,
+        duration: route.duration
+      });
+    }
+  });
+}, 200);*/
+
+CommuteMap.prototype.getMarkerInfosMatrix = _.debounce(function() {
+  var self = this;
+  if (!this.centerMarker.getVisible()) {
+    return;
+  }
+  var showcaseMarkersArray = _.map(this.showcaseMarkers, function(marker) {
+    return marker;
+  });
+  this.distanceMatrixService.getDistanceMatrix({
+    origins: [this.centerMarker.position],
+    destinations: _.map(showcaseMarkersArray, function(marker) {
+      return new google.maps.LatLng(marker.position.coordinates[1], marker.position.coordinates[0]);
+    }),
+    travelMode: google.maps.TravelMode[this.options.travelMode]
+  }, function (response, status) {
+    if (status == google.maps.DirectionsStatus.OK) {
+      var results = response.rows[0].elements;
+      for (var j = 0; j < results.length; j++) {
+        self.callbacks.showcaseMarkersInfos(showcaseMarkersArray[j]._id, {
+          travelMode: self.options.travelMode,
+          distance: results[j].distance,
+          duration: results[j].duration
+        });
+      }
+    }
+  });
+}, 200);

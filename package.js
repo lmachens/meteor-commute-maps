@@ -20,12 +20,13 @@ Package.onUse(function(api) {
     'reactive-var',
     'underscore']);
   api.addFiles([
+   'lib/markerwithlabel.js',
+   'lib/markerclusterer.js',
+   'lib/jquery.geocomplete.js',
    'commute-maps.html',
    'commute-maps.css',
    'commute-maps.js',
-   'commute-map.js',
-   'lib/markerwithlabel.js',
-   'lib/markerclusterer.js'
+   'commute-map.js'
   ], 'client');
   api.addAssets([
    'images/clusterer.png',

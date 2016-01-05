@@ -173,7 +173,8 @@ Template.commuteMaps.onRendered(function() {
         element: canvas,
         options: self.data.options,
         callbacks: self.data.callbacks,
-        features: self.data.features
+        features: self.data.features,
+        highlightedMarkers: self.data.highlightedMarkers
       });
 
       // set commute box depending on options
@@ -187,6 +188,26 @@ Template.commuteMaps.onRendered(function() {
         },
         added: function(marker, index) {
           self._map.addMarker(marker);
+        }
+      });
+
+      // observe showcase markers
+      self._observeShowcase = self.data.showcaseMarkers.observeChanges({
+        removed: function(id) {
+          self._map.removeShowcaseMarkerById(id);
+        },
+        addedBefore: function(id, fields, before) {
+          self._map.addShowcaseMarker(_.extend({_id: id}, fields));
+        }
+      });
+
+      // observe highlighted markers
+      self._observe = self.data.highlightedMarkers.observe({
+        removed: function (marker) {
+          self._map.lowlightMarkerByCoordinates(marker.pairedCoordinates);
+        },
+        added: function(marker, index) {
+          self._map.highlightMarkerByCoordinates(marker.pairedCoordinates);
         }
       });
 
@@ -217,6 +238,9 @@ Template.commuteMaps.onDestroyed(function() {
   }
   if (this._observe) {
     this._observe.stop();
+  }
+  if (this._observeShowcase) {
+    this._observeShowcase.stop();
   }
 });
 

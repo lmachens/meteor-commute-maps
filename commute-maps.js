@@ -146,6 +146,7 @@ Template.commuteMaps.onRendered(function() {
   }
 
   var self = this;
+  var initialized = new ReactiveVar(false);
 
   self.autorun(function(runFunc) {
     // Check if CommuteMaps has loaded
@@ -153,7 +154,6 @@ Template.commuteMaps.onRendered(function() {
       if (CommuteMaps.get(self.data.name)) {
         throw new Meteor.Error("CommuteMaps - Name already exists");
       }
-
       if (!_.isArray(self.data.options)) {
         self.data.options = {};
       }
@@ -181,39 +181,82 @@ Template.commuteMaps.onRendered(function() {
       var travelMode = self._map.getTravelMode();
       $('a[data-travel-mode="' + travelMode + '"]').addClass('active');
 
-      // observe markers collection
-      self._observe = self.data.markers.observe({
-        removed: function (marker) {
-          self._map.removeMarker(marker);
-        },
-        added: function(marker, index) {
-          self._map.addMarker(marker);
-        }
-      });
-
-      // observe showcase markers
-      self._observeShowcase = self.data.showcaseMarkers.observeChanges({
-        removed: function(id) {
-          self._map.removeShowcaseMarkerById(id);
-        },
-        addedBefore: function(id, fields, before) {
-          self._map.addShowcaseMarker(_.extend({_id: id}, fields));
-        }
-      });
-
-      // observe highlighted markers
-      self._observe = self.data.highlightedMarkers.observe({
-        removed: function (marker) {
-          self._map.lowlightMarkerByCoordinates(marker.pairedCoordinates);
-        },
-        added: function(marker, index) {
-          self._map.highlightMarkerByCoordinates(marker.pairedCoordinates);
-        }
-      });
-
-      // would like to stop the autorun but this would stop observing too
-      //runFunc.stop();
+      initialized.set(true);
+      runFunc.stop();
     }
+  });
+
+  var oldData = {
+    markers: null,
+    showcaseMarkers: null,
+    highlightedMarkers: null
+  };
+
+  self.autorun(function(runFunc) {
+    if (initialized.get()) {
+      // call it to react to dependencies
+      var data = Template.currentData();
+
+      if (!oldData.markers ||
+        data.markers.collection.name !== oldData.markers.collection.name ||
+        !_.isEqual(data.markers.matcher, oldData.markers.matcher)) {
+        // observe markers collection
+        if (self._observe) {
+          self._observe.stop();
+          // todo: remove all markers
+        }
+        self._observe = data.markers.observe({
+          removed: function (marker) {
+            self._map.removeMarker(marker);
+          },
+          added: function(marker, index) {
+            self._map.addMarker(marker);
+          }
+        });
+        oldData.markers = data.markers;
+      }
+
+      if (!oldData.showcaseMarkers ||
+        data.showcaseMarkers.collection.name !== oldData.showcaseMarkers.collection.name ||
+        !_.isEqual(data.showcaseMarkers.matcher, oldData.showcaseMarkers.matcher)) {
+        // observe showcase markers
+        if (self._observeShowcase) {
+          self._observeShowcase.stop();
+          self._map.removeShowcaseMarkers();
+        }
+        self._observeShowcase = data.showcaseMarkers.observeChanges({
+          removed: function(id) {
+            self._map.removeShowcaseMarkerById(id);
+          },
+          addedBefore: function(id, fields, before) {
+            self._map.addShowcaseMarker(
+              _.extend({_id: id}, fields)
+            );
+          }
+        });
+        oldData.showcaseMarkers = data.showcaseMarkers;
+      }
+
+      if (!oldData.highlightedMarkers ||
+        data.highlightedMarkers.collection.name !== oldData.highlightedMarkers.collection.name ||
+        !_.isEqual(data.highlightedMarkers.matcher, oldData.highlightedMarkers.matcher)) {
+        // observe highlighted markers
+        if (self._observeHighlighted) {
+          self._observeHighlighted.stop();
+          // todo delete
+        }
+        self._observeHighlighted = data.highlightedMarkers.observe({
+          removed: function (marker) {
+            self._map.lowlightMarkerByCoordinates(marker.pairedCoordinates);
+          },
+          added: function(marker, index) {
+            self._map.highlightMarkerByCoordinates(marker.pairedCoordinates);
+          }
+        });
+        oldData.highlightedMarkers = data.highlightedMarkers;
+      }
+    }
+
   });
 
   var rangeSliderValue = Session.get(this.data.name + '-rangeSliderValue');
@@ -241,6 +284,10 @@ Template.commuteMaps.onDestroyed(function() {
   }
   if (this._observeShowcase) {
     this._observeShowcase.stop();
+  }
+
+  if (this._observeHighlighted) {
+    this._observeHighlighted.stop();
   }
 });
 

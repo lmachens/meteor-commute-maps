@@ -1,6 +1,6 @@
 Package.describe({
   name: 'lmachens:commute-maps',
-  version: '0.0.1',
+  version: '0.0.2',
   // Brief, one-line summary of the package.
   summary: '',
   // URL to the Git repository containing the source code for this package.
@@ -15,7 +15,6 @@ Package.onUse(function(api) {
   api.use([
     'ecmascript',
     'templating',
-    'lmachens:google-maps-inverted-circle',
     'twbs:bootstrap',
     'reactive-var',
     'underscore']);
@@ -23,6 +22,7 @@ Package.onUse(function(api) {
    'lib/markerwithlabel.js',
    'lib/markerclusterer.js',
    'lib/jquery.geocomplete.js',
+   'lib/google-maps-inverted-circle.js',
    'commute-maps.html',
    'commute-maps.css',
    'commute-maps.js',

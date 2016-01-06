@@ -230,6 +230,19 @@ CommuteMap = function(instance, options, callbacks, features) {
   /*google.maps.event.addListener(this.directionsInfoWindow, 'domready', function() {
     $(".gm-style-iw").next("div").hide();
   });*/
+
+  // travelInfo caching
+  self.cachedTravelInfos = {
+    origin: null,
+    'DRIVING': {},
+    'TRANSIT': {},
+    'WALKING': {},
+    'BICYCLING': {}
+  };
+
+  // show transit layer
+  this.transitLayer = new google.maps.TransitLayer();
+  this.transitLayer.setMap(this.instance);
 }
 
 CommuteMap.prototype.initClusterer = function() {
@@ -295,54 +308,59 @@ CommuteMap.prototype.zoomOut = function() {
 }
 
 CommuteMap.prototype.addMarker = function(markerProperties) {
-  if (this.options.mergeMarkers) {
-    // check if a marker was added on same position
-    var pairedCoordinates = markerProperties.pairedCoordinates;
-    if (this.markers[pairedCoordinates]) {
-      this.markers[pairedCoordinates].markerIDs.push(markerProperties._id);
+  var self = this;
+  _.defer(function() {
+    if (self.options.mergeMarkers) {
+      // check if a marker was added on same position
+      var pairedCoordinates = markerProperties.pairedCoordinates;
+      if (self.markers[pairedCoordinates]) {
+        self.markers[pairedCoordinates].markerIDs.push(markerProperties._id);
+      } else {
+        self.createMarker(markerProperties);
+      }
+
+      // show number of submarkers
+      var number = self.markers[pairedCoordinates].markerIDs.length;
+      self.markers[pairedCoordinates].set('labelContent', number.toString());
+      if (number > 9) {
+        self.markers[pairedCoordinates].set('labelAnchor', new google.maps.Point(6, 7));
+      }
     } else {
-      this.createMarker(markerProperties);
+      self.createMarker(markerProperties);
     }
-
-    // show number of submarkers
-    var number = this.markers[pairedCoordinates].markerIDs.length;
-    this.markers[pairedCoordinates].set('labelContent', number.toString());
-    if (number > 9) {
-      this.markers[pairedCoordinates].set('labelAnchor', new google.maps.Point(6, 7));
-    }
-
-  } else {
-    this.createMarker(markerProperties);
-  }
+  });
 }
 
 CommuteMap.prototype.removeMarker = function(markerProperties) {
-  var marker = this.markers[markerProperties.pairedCoordinates];
-  if (marker) {
-    var index = marker.markerIDs.indexOf(markerProperties._id);
-    if (index > -1) {
-      marker.markerIDs.splice(index, 1);
-      // update number of flats in marker
-      var numberOfMarkerIDs = marker.markerIDs.length;
-      marker.set('labelContent', numberOfMarkerIDs.toString());
-      if (numberOfMarkerIDs < 10) {
-        marker.set('labelAnchor', new google.maps.Point(3, 7));
-      }
-
-      // remove Marker if empty
-      if (marker.markerIDs.length == 0) {
-        // hide route if marker was selected
-        if (marker === this.selectedMarker) {
-          this.selectedMarker = null;
-          this.hideRoute();
+  var self = this;
+  _.defer(function() {
+    var marker = self.markers[markerProperties.pairedCoordinates];
+    if (marker) {
+      var index = marker.markerIDs.indexOf(markerProperties._id);
+      if (index > -1) {
+        marker.markerIDs.splice(index, 1);
+        // update number of flats in marker
+        var numberOfMarkerIDs = marker.markerIDs.length;
+        marker.set('labelContent', numberOfMarkerIDs.toString());
+        if (numberOfMarkerIDs < 10) {
+          marker.set('labelAnchor', new google.maps.Point(3, 7));
         }
-        marker.setMap(null);
-        // remove marker from clusterer
-        this.markerClusterer.removeMarker(marker);
-        delete this.markers[markerProperties.pairedCoordinates];
+
+        // remove Marker if empty
+        if (marker.markerIDs.length == 0) {
+          // hide route if marker was selected
+          if (marker === self.selectedMarker) {
+            self.selectedMarker = null;
+            self.hideRoute();
+          }
+          marker.setMap(null);
+          // remove marker from clusterer
+          self.markerClusterer.removeMarker(marker);
+          delete self.markers[markerProperties.pairedCoordinates];
+        }
       }
     }
-  }
+  });
 }
 
 CommuteMap.prototype.createMarker = function(options) {
@@ -427,6 +445,9 @@ CommuteMap.prototype.deselectSelectedMarker = function() {
 }
 
 CommuteMap.prototype.highlightMarker = function(marker) {
+  if (marker.highlighted) {
+    return;
+  }
   marker.setIcon(this.options.markerStyles.highlighted);
 
   marker.set('labelStyle', {
@@ -445,6 +466,7 @@ CommuteMap.prototype.highlightMarker = function(marker) {
       this.highlightCluster(cluster);
     }
   }
+  marker.highlighted = true;
 }
 
 CommuteMap.prototype.highlightMarkerByCoordinates = function(pairedCoordinates) {
@@ -452,8 +474,13 @@ CommuteMap.prototype.highlightMarkerByCoordinates = function(pairedCoordinates) 
 }
 
 CommuteMap.prototype.lowlightMarker = function(marker) {
+  if (!marker.highlighted) {
+    return;
+  }
   marker.setIcon(this.options.markerStyles.default);
-  marker.set('labelStyle', {});
+  marker.set('labelStyle', {
+    //color: this.options.markerStyles.default.strokeColor
+  });
   marker.setZIndex(marker.oldZIndex);
   marker.oldZIndex = null;
 
@@ -464,6 +491,7 @@ CommuteMap.prototype.lowlightMarker = function(marker) {
       this.lowlightCluster(cluster);
     }
   }
+  marker.highlighted = false;
 }
 
 CommuteMap.prototype.lowlightMarkerByCoordinates = function(pairedCoordinates) {
@@ -488,6 +516,17 @@ CommuteMap.prototype.displayRoute = function() {
     return;
   }
   var self = this;
+
+  var travelInfo = this.cachedTravelInfos[this.options.travelMode][this.selectedMarker.pairedCoordinates];
+  if (this.cachedTravelInfos.origin === this.centerMarker.pairedCoordinates &&
+      travelInfo) {
+    var content = self.createInfoWindowContent(travelInfo);
+      self.directionsDisplay.setMap(self.instance);
+      self.directionsInfoWindow.setContent(content);
+      self.directionsInfoWindow.open(self.instance, self.selectedMarker);
+      self.callbacks.showcaseMarkersInfos(self.selectedMarker.pairedCoordinates, travelInfo);
+  }
+
   this.directionsService.route({
     origin: this.centerMarker.position,
     destination: this.selectedMarker.position,
@@ -495,25 +534,33 @@ CommuteMap.prototype.displayRoute = function() {
   }, function (response, status) {
     if (status == google.maps.DirectionsStatus.OK && self.selectedMarker) {
       self.directionsDisplay.setDirections(response);
-      var content = self.createInfoWindowContent(response);
+      var route = response.routes[0].legs[0];
+      var travelInfo = {
+        origin: self.centerMarker.position,
+        travelMode: self.options.travelMode,
+        distance: route.distance,
+        duration: route.duration
+      };
+
+      var content = self.createInfoWindowContent(travelInfo);
       self.directionsDisplay.setMap(self.instance);
       self.directionsInfoWindow.setContent(content);
       self.directionsInfoWindow.open(self.instance, self.selectedMarker);
+      self.callbacks.showcaseMarkersInfos(self.selectedMarker.pairedCoordinates, travelInfo);
+      self.cachedTravelInfos[self.options.travelMode][self.selectedMarker.pairedCoordinates] = travelInfo;
     }
   });
 }
 
-CommuteMap.prototype.createInfoWindowContent = function(data) {
-  var route = data.routes[0].legs[0];
+CommuteMap.prototype.createInfoWindowContent = function(travelInfo) {
   var icon = '';
-  switch (data.request.travelMode) {
+  switch (travelInfo.travelMode) {
     case 'DRIVING': icon = 'fa fa-car fa-lg'; break;
     case 'TRANSIT': icon = 'fa fa-train fa-lg'; break;
     case 'WALKING': icon = 'fa fa-male fa-lg'; break;
     case 'BICYCLING': icon = 'fa fa-bicycle fa-lg'; break;
   }
-
-  return '<i class="' + icon + '"></i> <b>' + route.distance.text + '</b><br>' + route.duration.text;
+  return '<i class="' + icon + '"></i> <b>' + travelInfo.distance.text + '</b><br>' + travelInfo.duration.text;
 }
 
 CommuteMap.prototype.hideRoute = function() {
@@ -534,39 +581,53 @@ CommuteMap.prototype.addShowcaseMarker = function(marker) {
   }
 }
 
+CommuteMap.prototype.removeShowcaseMarkers = function(id) {
+    this.showcaseMarkers = {};
+}
+
 CommuteMap.prototype.removeShowcaseMarkerById = function(id) {
     delete this.showcaseMarkers[id];
 }
-
-/*CommuteMap.prototype.getMarkerInfos = _.rateLimit(function(marker) {
-  var self = this;
-  if (!this.centerMarker.getVisible()) {
-    return;
-  }
- this.directionsService.route({
-    origin: self.centerMarker.position,
-    destination: new google.maps.LatLng(marker.position.coordinates[1], marker.position.coordinates[0]),
-    travelMode: google.maps.TravelMode[this.options.travelMode]
-  }, function (response, status) {
-    if (status == google.maps.DirectionsStatus.OK && marker) {
-      var route = response.routes[0].legs[0];
-      self.callbacks.showcaseMarkersInfos(marker._id, {
-        travelMode: response.request.travelMode,
-        distance: route.distance,
-        duration: route.duration
-      });
-    }
-  });
-}, 200);*/
 
 CommuteMap.prototype.getMarkerInfosMatrix = _.debounce(function() {
   var self = this;
   if (!this.centerMarker.getVisible()) {
     return;
   }
+  // object to array
   var showcaseMarkersArray = _.map(this.showcaseMarkers, function(marker) {
     return marker;
   });
+  // unique pairedCoordinates
+  showcaseMarkersArray = _.uniq(showcaseMarkersArray, function(item, key, a) {
+    return item.pairedCoordinates;
+  });
+
+  // reject if travel info is in cache
+  if (this.cachedTravelInfos.origin === this.centerMarker.pairedCoordinates) {
+    showcaseMarkersArray = _.reject(showcaseMarkersArray, function(marker) {
+      var cachedTravelInfo = self.cachedTravelInfos[self.options.travelMode][marker.pairedCoordinates];
+      if (cachedTravelInfo) {
+        self.callbacks.showcaseMarkersInfos(marker.pairedCoordinates, cachedTravelInfo);
+        return true;
+      }
+      return false;
+    });
+    if (showcaseMarkersArray.length == 0) {
+      return;
+    }
+  } else {
+    // clear cache (because a different origin is requested)
+    this.cachedTravelInfos = {
+      origin: this.centerMarker.pairedCoordinates,
+      'DRIVING': {},
+      'TRANSIT': {},
+      'WALKING': {},
+      'BICYCLING': {}
+    };
+  }
+
+  // get travel infos from google matrix service
   this.distanceMatrixService.getDistanceMatrix({
     origins: [this.centerMarker.position],
     destinations: _.map(showcaseMarkersArray, function(marker) {
@@ -577,11 +638,15 @@ CommuteMap.prototype.getMarkerInfosMatrix = _.debounce(function() {
     if (status == google.maps.DirectionsStatus.OK) {
       var results = response.rows[0].elements;
       for (var j = 0; j < results.length; j++) {
-        self.callbacks.showcaseMarkersInfos(showcaseMarkersArray[j]._id, {
+        var travelInfo = {
+          origin: self.centerMarker.position,
           travelMode: self.options.travelMode,
           distance: results[j].distance,
           duration: results[j].duration
-        });
+        };
+        self.callbacks.showcaseMarkersInfos(showcaseMarkersArray[j].pairedCoordinates, travelInfo);
+        // cache result
+        self.cachedTravelInfos[self.options.travelMode][showcaseMarkersArray[j].pairedCoordinates] = travelInfo;
       }
     }
   });

@@ -213,7 +213,8 @@ Template.commuteMaps.onRendered(function() {
   });
 
   var oldData = {
-    options: self.data.options
+    options: self.data.options,
+    labels: self.data.labels
   };
 
   self.autorun(function(runFunc) {
@@ -272,6 +273,12 @@ Template.commuteMaps.onRendered(function() {
         self._map.instance.setOptions({styles: data.options.styles});
         oldData.options.styles = data.options.styles;
       }
+
+      // labels
+      if (!_.isEqual(data.labels, oldData.labels)) {
+        self._map.centerMarker.set('enterAddressLabel', data.labels.enterAddressLabel);
+        oldData.labels = data.labels;
+      }
     }
 
   });
@@ -311,20 +318,6 @@ Template.commuteMaps.helpers({
     }
     return this.labels.travelModesLabel;
   },
-  byDistanceLabel: function() {
-    // Default label
-    if (!this.labels || typeof this.labels.byDistanceLabel === 'undefined') {
-      return 'By Distance';
-    }
-    return this.labels.byDistanceLabel;
-  },
-  byTravelTimeLabel: function() {
-    // Default label
-    if (!this.labels || typeof this.labels.byTravelTimeLabel === 'undefined') {
-      return 'By Travel Time';
-    }
-    return this.labels.byTravelTimeLabel;
-  },
   showAllMarkersLabel: function() {
     // Default label
     if (!this.labels || typeof this.labels.showAllMarkersLabel === 'undefined') {
@@ -337,12 +330,21 @@ Template.commuteMaps.helpers({
 Template.commuteMaps.events({
   'click .zoomControls .in': function (e, t) {
     t._map.zoomIn();
+    if (t.data.options.useGoogleAnalytics) {
+      ga('send', 'event', 'Site: Search', 'User zoomed in')
+    }
   },
   'click .zoomControls .out': function (e, t) {
     t._map.zoomOut();
+    if (t.data.options.useGoogleAnalytics) {
+      ga('send', 'event', 'Site: Search', 'User zoomed out')
+    }
   },
   'click .showAllMarkers': function(e, t) {
     t._map.callbacks.showHiddenMarkersChanged(e.target.checked);
+    if (t.data.options.useGoogleAnalytics) {
+      ga('send', 'event', 'Site: Search', 'Show All Markers')
+    }
   },
   'click a[data-travel-mode]': function (e, t) {
     $('a[data-travel-mode]').each(function() {
@@ -354,5 +356,8 @@ Template.commuteMaps.events({
     var isActive = $(e.currentTarget).hasClass('active');
     t._map.setTravelMode(travelMode);
     e.currentTarget.blur();
+    if (t.data.options.useGoogleAnalytics) {
+      ga('send', 'event', 'Site: Search', 'Data travel mode clicked', travelMode)
+    }
   }
 });

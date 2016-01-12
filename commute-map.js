@@ -1,5 +1,7 @@
-CommuteMap = function(instance, options, callbacks, features) {
+CommuteMap = function(instance, collection, options, callbacks, features) {
   var self = this;
+  this.collection = collection;
+
   this.instance = instance;
   _.defaults(options, {
     mergeMarkers: true,
@@ -59,25 +61,30 @@ CommuteMap = function(instance, options, callbacks, features) {
       }
     },
     showCenterMarker: true,
-    centerMarkerStyle: {
-      url: '/packages/lmachens_commute-maps/images/center.png',
-      size: new google.maps.Size(27, 27),
-      origin: new google.maps.Point(0,0),
-      anchor: new google.maps.Point(15, 15)
-    },
     boundsMode: 'byDistance',
     distanceRadius: 2000,
-    boundsByDistanceStyle: {
-      stroke_weight: 3,
-      stroke_color: '#4E87B6',
-      resize_leftright: '/packages/lmachens_commute-maps/images/resize_leftright.png'
-    },
     useMiles: false,
     boundsModeZoomThreshhold: 11,
-    travelMode: 'DRIVING'
+    travelMode: 'DRIVING',
+    collectionFilters: {},
+    enterAddressLabel: 'Enter Address'
   });
   this.options = options;
+  this.options.boundsByDistanceStyle = _.defaults(options.boundsByDistanceStyle, {
+    stroke_weight: 3,
+    stroke_color: '#4E87B6',
+    resize_leftright: '/packages/lmachens_commute-maps/images/resize_leftright.png'
+  });
+  this.options.centerMarkerStyle = _.defaults(options.centerMarkerStyle, {
+    url: '/packages/lmachens_commute-maps/images/center.png',
+    size: new google.maps.Size(27, 27),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(15, 15)
+  });
 
+  if (callbacks == null) {
+    callbacks = {};
+  }
   _.defaults(callbacks, {
     markerSelected: function(marker) {},
     markerDeselected: function(marker) {},
@@ -85,7 +92,9 @@ CommuteMap = function(instance, options, callbacks, features) {
     distanceBoundsChanged: function(geospatialQuery, primaryBounds) {},
     showHiddenMarkersChanged: function(showHiddenMarkers) {},
     travelModeChanged: function(travelMode) {},
-    showcaseMarkers: function(id, infos) {}
+    showcaseMarkersInfos: function(pairedCoordinates, infos) {},
+    showcaseMarkerAdded: function(marker) {},
+    showcaseMarkerRemoved: function(marker) {}
   });
   this.callbacks = callbacks;
 
@@ -124,9 +133,11 @@ CommuteMap = function(instance, options, callbacks, features) {
     var sw = bounds.getSouthWest()
 
     // deselect marker if out of bounds
-    if (self.selectedMarker && !bounds.contains(self.selectedMarker.getPosition())) {
+    /*if (self.options.boundsMode !== 'byDistance' && self.selectedMarker && !bounds.contains(self.selectedMarker.getPosition())) {
+      self.deselectSelectedMarker();
+      self.startObservingShowcase();
       self.callbacks.markerDeselected(self.selectedMarker);
-    }
+    }*/
 
     self.callbacks.mapBoundsChanged({
       $geoWithin: {
@@ -145,14 +156,17 @@ CommuteMap = function(instance, options, callbacks, features) {
   });
 
   this.instance.addListener('zoom_changed', function() {
+    if (options.boundsMode !== 'byDistance') {
+      return;
+    }
     var visible = this.getZoom() > options.boundsModeZoomThreshhold;
     // center invertedCircle if it is getting visible
     if (visible && !self.centerMarker.getVisible()) {
-      self.centerMarker.setCenter(self.instance.getCenter());
+      self.centerMarker.setCenter(self.instance.getCenter(), true);
       self.getMarkerInfosMatrix();
     } else if (!visible && self.centerMarker.getVisible()){
       _.each(self.showcaseMarkers, function(marker) {
-        self.callbacks.showcaseMarkersInfos(marker._id);
+        self.callbacks.showcaseMarkersInfos(marker.pairedCoordinates, null);
       });
     }
     // set invertedCircle visible depending on zoom level
@@ -167,10 +181,12 @@ CommuteMap = function(instance, options, callbacks, features) {
       radius: options.distanceRadius,
       draggable: true,
       editable: true,
+      always_fit_to_map: true,
       stroke_weight: options.boundsByDistanceStyle.stroke_weight,
       stroke_color: options.boundsByDistanceStyle.stroke_color,
       resize_leftright: options.boundsByDistanceStyle.resize_leftright,
       center_icon: options.centerMarkerStyle,
+      enterAddressLabel: options.enterAddressLabel,
       position_changed_event: _.throttle(function(position) {
         self.callbacks.distanceBoundsChanged({
           $geoWithin: {
@@ -192,7 +208,13 @@ CommuteMap = function(instance, options, callbacks, features) {
             ]
           }
         });
-      }, 200)
+      }, 200),
+      clicked_event: function() {
+        if (self.selectedMarker) {
+          self.deselectSelectedMarker();
+          self.hideRoute();
+        }
+      }
     });
 
     if (this.centerMarker.getVisible()) {
@@ -243,6 +265,47 @@ CommuteMap = function(instance, options, callbacks, features) {
   // show transit layer
   this.transitLayer = new google.maps.TransitLayer();
   this.transitLayer.setMap(this.instance);
+
+  // collections
+  this.observe = collection.find(this.options.collectionFilters).observe({
+    removed: function (marker) {
+      self.removeMarker(marker);
+    },
+    added: function(marker, index) {
+      self.addMarker(marker);
+    }
+  });
+
+  this.startObservingShowcase();
+}
+
+CommuteMap.prototype.destroy = function() {
+  this.observe.stop();
+  this.observeShowcase.stop();
+}
+
+CommuteMap.prototype.startObservingShowcase = function(filter) {
+  var self = this;
+  if (this.observeShowcase) {
+    this.observeShowcase.stop();
+    _.each(this.showcaseMarkers, function(marker) {
+      self.callbacks.showcaseMarkerRemoved(marker);
+    });
+    self.removeShowcaseMarkers();
+  }
+  if (!filter) {
+    filter = {};
+  }
+  this.observeShowcase = this.collection.find(filter, this.options.showcaseQuery).observeChanges({
+    removed: function(id) {
+      self.removeShowcaseMarkerById(id);
+    },
+    addedBefore: function(id, fields, before) {
+      self.addShowcaseMarker(
+        _.extend({_id: id}, fields)
+      );
+    }
+  });
 }
 
 CommuteMap.prototype.initClusterer = function() {
@@ -299,6 +362,11 @@ CommuteMap.prototype.lowlightCluster = function(cluster) {
   $(cluster.clusterIcon_.div_.lastChild).css('color', this.options.clustererStyles.default.textColor);
 }
 
+CommuteMap.prototype.setCenter = function(center) {
+  this.instance.setCenter(center);
+  this.centerMarker.setCenter(this.instance.getCenter(), true);
+}
+
 CommuteMap.prototype.zoomIn = function() {
   this.instance.setZoom(this.instance.getZoom() + 1);
 }
@@ -331,6 +399,13 @@ CommuteMap.prototype.addMarker = function(markerProperties) {
   });
 }
 
+CommuteMap.prototype.removeMarkers = function() {
+  _.each(this.markers, function(marker) {
+    marker.setMap(null);
+  });
+  this.markers = {};
+}
+
 CommuteMap.prototype.removeMarker = function(markerProperties) {
   var self = this;
   _.defer(function() {
@@ -350,7 +425,7 @@ CommuteMap.prototype.removeMarker = function(markerProperties) {
         if (marker.markerIDs.length == 0) {
           // hide route if marker was selected
           if (marker === self.selectedMarker) {
-            self.selectedMarker = null;
+            self.deselectSelectedMarker();
             self.hideRoute();
           }
           marker.setMap(null);
@@ -399,11 +474,13 @@ CommuteMap.prototype.createMarker = function(options) {
     }
     if (this === self.selectedMarker) {
       self.selectedMarker = null;
+      self.startObservingShowcase();
       self.callbacks.markerDeselected(this);
       self.hideRoute();
     } else {
       self.selectMarker(this);
       self.selectedMarker = this;
+      self.startObservingShowcase({_id: {$in: this.markerIDs}});
       self.callbacks.markerSelected(this);
       self.displayRoute();
     }
@@ -440,6 +517,7 @@ CommuteMap.prototype.deselectSelectedMarker = function() {
     cluster.updateIcon_()
   }
   this.lowlightMarker(this.selectedMarker);
+  this.startObservingShowcase();
   this.callbacks.markerDeselected(this.selectedMarker);
   this.selectedMarker = null;
 }
@@ -470,7 +548,9 @@ CommuteMap.prototype.highlightMarker = function(marker) {
 }
 
 CommuteMap.prototype.highlightMarkerByCoordinates = function(pairedCoordinates) {
-  this.highlightMarker(this.markers[pairedCoordinates]);
+  if (this.markers[pairedCoordinates]) {
+    this.highlightMarker(this.markers[pairedCoordinates]);
+  }
 }
 
 CommuteMap.prototype.lowlightMarker = function(marker) {
@@ -495,7 +575,9 @@ CommuteMap.prototype.lowlightMarker = function(marker) {
 }
 
 CommuteMap.prototype.lowlightMarkerByCoordinates = function(pairedCoordinates) {
-  this.lowlightMarker(this.markers[pairedCoordinates]);
+  if (this.markers[pairedCoordinates]) {
+    this.lowlightMarker(this.markers[pairedCoordinates]);
+  }
 }
 
 CommuteMap.prototype.setTravelMode = function(travelMode, isActive) {
@@ -555,12 +637,12 @@ CommuteMap.prototype.displayRoute = function() {
 CommuteMap.prototype.createInfoWindowContent = function(travelInfo) {
   var icon = '';
   switch (travelInfo.travelMode) {
-    case 'DRIVING': icon = 'fa fa-car fa-lg'; break;
-    case 'TRANSIT': icon = 'fa fa-train fa-lg'; break;
-    case 'WALKING': icon = 'fa fa-male fa-lg'; break;
-    case 'BICYCLING': icon = 'fa fa-bicycle fa-lg'; break;
+    case 'DRIVING': icon = 'fa fa-car'; break;
+    case 'TRANSIT': icon = 'fa fa-train'; break;
+    case 'WALKING': icon = 'fa fa-male'; break;
+    case 'BICYCLING': icon = 'fa fa-bicycle'; break;
   }
-  return '<i class="' + icon + '"></i> <b>' + travelInfo.distance.text + '</b><br>' + travelInfo.duration.text;
+  return '<i class="' + icon + '"></i> <b>' + travelInfo.duration.text + '</b>';
 }
 
 CommuteMap.prototype.hideRoute = function() {
@@ -579,14 +661,16 @@ CommuteMap.prototype.addShowcaseMarker = function(marker) {
       self.getMarkerInfosMatrixCalled = false;
     }, 200);
   }
+  this.callbacks.showcaseMarkerAdded(marker);
 }
 
 CommuteMap.prototype.removeShowcaseMarkers = function(id) {
-    this.showcaseMarkers = {};
+  this.showcaseMarkers = {};
 }
 
 CommuteMap.prototype.removeShowcaseMarkerById = function(id) {
-    delete this.showcaseMarkers[id];
+  this.callbacks.showcaseMarkerRemoved(this.showcaseMarkers[id]);
+  delete this.showcaseMarkers[id];
 }
 
 CommuteMap.prototype.getMarkerInfosMatrix = _.debounce(function() {
@@ -638,6 +722,10 @@ CommuteMap.prototype.getMarkerInfosMatrix = _.debounce(function() {
     if (status == google.maps.DirectionsStatus.OK) {
       var results = response.rows[0].elements;
       for (var j = 0; j < results.length; j++) {
+        if (results[j].status !== 'OK') {
+          continue;
+        }
+
         var travelInfo = {
           origin: self.centerMarker.position,
           travelMode: self.options.travelMode,

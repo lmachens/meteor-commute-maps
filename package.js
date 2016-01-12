@@ -17,7 +17,9 @@ Package.onUse(function(api) {
     'templating',
     'twbs:bootstrap',
     'reactive-var',
-    'underscore']);
+    'underscore',
+    'postrednik:meteor-rangeslider'
+    ]);
   api.addFiles([
    'lib/markerwithlabel.js',
    'lib/markerclusterer.js',

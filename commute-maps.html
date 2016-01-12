@@ -31,18 +31,21 @@
 
       <div class="tab-content">
         <div id="byDistance-{{name}}" role="tabpanel" class="tab-pane fade">
-          -->
+
           <div class="checkbox">
             <label>
               <input class="showAllMarkers" type="checkbox"> {{showAllMarkersLabel}}
             </label>
           </div>
-          <!--
+
         </div>
 
         <div id="byTravelTime-{{name}}" role="tabpanel" class="tab-pane fade">
           <input id="byTimeMinutes-{{name}}">
           -->
+          <div class="travelModesTitle">
+            {{travelModesLabel}}
+          </div>
           <div class="btn-group travelModes">
             <a data-travel-mode="DRIVING" class="btn btn-default" href="#">
               <i class="fa fa-car fa-lg"></i>

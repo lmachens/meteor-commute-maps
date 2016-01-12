@@ -20,7 +20,6 @@ CommuteMaps = {
   maps: {},
   _callbacks: {},
   initialize: function() {
-    this._loaded.set(true);
     _.each(this.utilityLibraries, function(path) {
       var script = document.createElement('script');
       script.type = 'text/javascript';
@@ -28,9 +27,11 @@ CommuteMaps = {
 
       document.body.appendChild(script);
     });
+    InitGeocomplete();
     LoadMarkerWithLabel();
     LoadMarkerClusterer();
     InitInvertedCircle();
+    this._loaded.set(true);
   },
   _ready: function(name, map) {
     _.each(this._callbacks[name], function(cb) {
@@ -54,6 +55,7 @@ CommuteMaps = {
     var self = this;
     self.maps[name] = new CommuteMap (
       options.instance,
+      options.collection,
       options.options,
       options.callbacks,
       options.features
@@ -135,7 +137,8 @@ CommuteMaps = {
       center: options.center,
       options: options.options,
       callbacks: options.callbacks,
-      features: options.features
+      features: options.features,
+      collection: options.collection
     });
   }
 }
@@ -148,13 +151,30 @@ Template.commuteMaps.onRendered(function() {
   var self = this;
   var initialized = new ReactiveVar(false);
 
+  var initCommuteMaps = function() {
+    var canvas = document.getElementById('map-' + self.data.name);
+      self._map = CommuteMaps.create({
+        name: self.data.name,
+        element: canvas,
+        options: self.data.options,
+        callbacks: self.data.callbacks,
+        features: self.data.features,
+        collection: self.data.collection
+      });
+
+      // set commute box depending on options
+      var travelMode = self._map.getTravelMode();
+      $('a[data-travel-mode="' + travelMode + '"]').addClass('active');
+      initialized.set(true);
+  }
+
   self.autorun(function(runFunc) {
     // Check if CommuteMaps has loaded
     if (CommuteMaps.loaded()) {
       if (CommuteMaps.get(self.data.name)) {
         throw new Meteor.Error("CommuteMaps - Name already exists");
       }
-      if (!_.isArray(self.data.options)) {
+      if (!_.isObject(self.data.options)) {
         self.data.options = {};
       }
       // open last active tab
@@ -166,30 +186,34 @@ Template.commuteMaps.onRendered(function() {
         self.data.options.commuteMode = 'byDistance';
       }
 
-      var canvas = document.getElementById('map-' + self.data.name);
+      self.data.options.enterAddressLabel = self.data.labels.enterAddressLabel;
+      if (self.data.options.center &&
+        self.data.options.center.city &&
+        self.data.options.center.country) {
+        var geocoder = new google.maps.Geocoder();
+        geocoder.geocode({
+          address: self.data.options.center.city + ', ' + self.data.options.center.country
+        }, function (res, status) {
+          if (status != 'OK') {
+            return;
+          }
+          var location = res[0].geometry.location;
+          self.data.options.center = {
+            lat: location.lat(),
+            lng: location.lng()
+          }
+          initCommuteMaps();
+        });
+      } else {
+        initCommuteMaps();
+      }
 
-      self._map = CommuteMaps.create({
-        name: self.data.name,
-        element: canvas,
-        options: self.data.options,
-        callbacks: self.data.callbacks,
-        features: self.data.features,
-        highlightedMarkers: self.data.highlightedMarkers
-      });
-
-      // set commute box depending on options
-      var travelMode = self._map.getTravelMode();
-      $('a[data-travel-mode="' + travelMode + '"]').addClass('active');
-
-      initialized.set(true);
       runFunc.stop();
     }
   });
 
   var oldData = {
-    markers: null,
-    showcaseMarkers: null,
-    highlightedMarkers: null
+    options: self.data.options
   };
 
   self.autorun(function(runFunc) {
@@ -197,49 +221,7 @@ Template.commuteMaps.onRendered(function() {
       // call it to react to dependencies
       var data = Template.currentData();
 
-      if (!oldData.markers ||
-        data.markers.collection.name !== oldData.markers.collection.name ||
-        !_.isEqual(data.markers.matcher, oldData.markers.matcher)) {
-        // observe markers collection
-        if (self._observe) {
-          self._observe.stop();
-          // todo: remove all markers
-        }
-        self._observe = data.markers.observe({
-          removed: function (marker) {
-            self._map.removeMarker(marker);
-          },
-          added: function(marker, index) {
-            self._map.addMarker(marker);
-          }
-        });
-        oldData.markers = data.markers;
-      }
-
-      if (!oldData.showcaseMarkers ||
-        data.showcaseMarkers.collection.name !== oldData.showcaseMarkers.collection.name ||
-        !_.isEqual(data.showcaseMarkers.matcher, oldData.showcaseMarkers.matcher)) {
-        // observe showcase markers
-        if (self._observeShowcase) {
-          self._observeShowcase.stop();
-          self._map.removeShowcaseMarkers();
-        }
-        self._observeShowcase = data.showcaseMarkers.observeChanges({
-          removed: function(id) {
-            self._map.removeShowcaseMarkerById(id);
-          },
-          addedBefore: function(id, fields, before) {
-            self._map.addShowcaseMarker(
-              _.extend({_id: id}, fields)
-            );
-          }
-        });
-        oldData.showcaseMarkers = data.showcaseMarkers;
-      }
-
-      if (!oldData.highlightedMarkers ||
-        data.highlightedMarkers.collection.name !== oldData.highlightedMarkers.collection.name ||
-        !_.isEqual(data.highlightedMarkers.matcher, oldData.highlightedMarkers.matcher)) {
+      if (data.highlightedMarkers) {
         // observe highlighted markers
         if (self._observeHighlighted) {
           self._observeHighlighted.stop();
@@ -247,13 +229,48 @@ Template.commuteMaps.onRendered(function() {
         }
         self._observeHighlighted = data.highlightedMarkers.observe({
           removed: function (marker) {
-            self._map.lowlightMarkerByCoordinates(marker.pairedCoordinates);
+            if (!self._map.selectedMarker) {
+              self._map.lowlightMarkerByCoordinates(marker.pairedCoordinates);
+            }
           },
           added: function(marker, index) {
-            self._map.highlightMarkerByCoordinates(marker.pairedCoordinates);
+            if (!self._map.selectedMarker) {
+              self._map.highlightMarkerByCoordinates(marker.pairedCoordinates);
+            }
           }
         });
-        oldData.highlightedMarkers = data.highlightedMarkers;
+      }
+
+      if (!_.isEqual(data.options.center, oldData.options.center) &&
+        data.options.center.city &&
+        data.options.center.country) {
+        var geocoder = new google.maps.Geocoder();
+        geocoder.geocode({
+          address: data.options.center.city + ', ' + data.options.center.country
+        }, function (res, status) {
+          if (status != 'OK') {
+            return;
+          }
+          var location = res[0].geometry.location;
+          self._map.instance.setZoom(data.options.zoom);
+          self._map.setCenter({
+            lat: location.lat(),
+            lng: location.lng()
+          });
+        });
+        oldData.options.center = data.options.center;
+      }
+
+      if (!_.isEqual(data.options.showcaseQuery, oldData.options.showcaseQuery)) {
+        self._map.options.showcaseQuery = data.options.showcaseQuery;
+        self._map.startObservingShowcase();
+        oldData.options.showcaseQuery = data.options.showcaseQuery;
+      }
+
+      if (data.options.styles &&
+        !_.isEqual(data.options.styles, oldData.options.styles)) {
+        self._map.instance.setOptions({styles: data.options.styles});
+        oldData.options.styles = data.options.styles;
       }
     }
 
@@ -277,13 +294,8 @@ Template.commuteMaps.onRendered(function() {
 Template.commuteMaps.onDestroyed(function() {
   if (this._map) {
     google.maps.event.clearInstanceListeners(CommuteMaps.maps[this.data.name].instance);
+    CommuteMaps.maps[this.data.name].destroy();
     delete CommuteMaps.maps[this.data.name];
-  }
-  if (this._observe) {
-    this._observe.stop();
-  }
-  if (this._observeShowcase) {
-    this._observeShowcase.stop();
   }
 
   if (this._observeHighlighted) {
@@ -292,6 +304,13 @@ Template.commuteMaps.onDestroyed(function() {
 });
 
 Template.commuteMaps.helpers({
+  travelModesLabel: function() {
+    // Default label
+    if (!this.labels || typeof this.labels.travelModesLabel === 'undefined') {
+      return 'Travel Modes';
+    }
+    return this.labels.travelModesLabel;
+  },
   byDistanceLabel: function() {
     // Default label
     if (!this.labels || typeof this.labels.byDistanceLabel === 'undefined') {

@@ -2,12 +2,12 @@ Package.describe({
   name: 'lmachens:commute-maps',
   version: '0.0.3',
   // Brief, one-line summary of the package.
-  summary: '',
+  summary: 'Google Maps with commute functions',
   // URL to the Git repository containing the source code for this package.
   git: '',
   // By default, Meteor will default to using README.md for documentation.
   // To avoid submitting documentation, set this field to null.
-  documentation: 'README.md'
+  documentation: null
 });
 
 Package.onUse(function(api) {
@@ -15,10 +15,10 @@ Package.onUse(function(api) {
   api.use([
     'ecmascript',
     'templating',
-    'twbs:bootstrap',
+    'twbs:bootstrap@3.3.6',
     'reactive-var',
     'underscore',
-    'postrednik:meteor-rangeslider'
+    'postrednik:meteor-rangeslider@0.1.0'
     ]);
   api.addFiles([
    'lib/markerwithlabel.js',

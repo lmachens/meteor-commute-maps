@@ -331,19 +331,19 @@ Template.commuteMaps.events({
   'click .zoomControls .in': function (e, t) {
     t._map.zoomIn();
     if (t.data.options.useGoogleAnalytics) {
-      ga('send', 'event', 'Site: Search', 'User zoomed in')
+      ga('send', 'event', 'Site: Search', 'User zoomed in');
     }
   },
   'click .zoomControls .out': function (e, t) {
     t._map.zoomOut();
     if (t.data.options.useGoogleAnalytics) {
-      ga('send', 'event', 'Site: Search', 'User zoomed out')
+      ga('send', 'event', 'Site: Search', 'User zoomed out');
     }
   },
   'click .showAllMarkers': function(e, t) {
     t._map.callbacks.showHiddenMarkersChanged(e.target.checked);
     if (t.data.options.useGoogleAnalytics) {
-      ga('send', 'event', 'Site: Search', 'Show All Markers')
+      ga('send', 'event', 'Site: Search', 'Show All Markers');
     }
   },
   'click a[data-travel-mode]': function (e, t) {
@@ -358,6 +358,12 @@ Template.commuteMaps.events({
     e.currentTarget.blur();
     if (t.data.options.useGoogleAnalytics) {
       ga('send', 'event', 'Site: Search', 'Data travel mode clicked', travelMode)
+    }
+  },
+  'click .invertedCircleToggle': function(e, t) {
+    t._map.toggleInvertedCircleVisibility();
+    if (t.data.options.useGoogleAnalytics) {
+      ga('send', 'event', 'Site: Search', 'User toggled Inverted Circle ');
     }
   }
 });

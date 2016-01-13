@@ -703,9 +703,6 @@ CommuteMap.prototype.removeShowcaseMarkerById = function(id) {
 
 CommuteMap.prototype.getMarkerInfosMatrix = _.debounce(function() {
   var self = this;
-  if (!this.centerMarker.getVisible()) {
-    return;
-  }
   // object to array
   var showcaseMarkersArray = _.map(this.showcaseMarkers, function(marker) {
     return marker;
@@ -777,6 +774,7 @@ CommuteMap.prototype.setInvertedCircleVisibility = function(visible) {
   if (this.centerMarker.getVisible() === visible) {
     return;
   }
+
   if (visible) {
     this.options.boundsMode = 'byDistance';
     this.centerMarker.triggerPositionChangedEvent();

@@ -137,7 +137,7 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
     }
   });
 
-  this.instance.addListener('zoom_changed', function() {
+  this.instance.addListener('zoom_changed', _.debounce(function() {
     if (self.boundsMode.get() !== 'byDistance') {
       return;
     }
@@ -153,7 +153,7 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
     }*/
     // set invertedCircle visible depending on zoom level
     self.setInvertedCircleVisibility(visible);
-  });
+  }), 300);
 
   if (options.showCenterMarker) {
     this.centerMarker = new InvertedCircle({
@@ -253,16 +253,14 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
   this.transitLayer.setMap(this.instance);
 
   // collections
-  this.observe = collection.find(this.options.collectionFilters).observe({
+  /*this.observe = collection.find(this.options.collectionFilters).observe({
     removed: function (marker) {
       self.removeMarker(marker);
     },
     added: function(marker, index) {
       self.addMarker(marker);
     }
-  });
-
-  this.startObservingShowcase();
+  });*/
 }
 
 CommuteMap.prototype.destroy = function() {
@@ -270,7 +268,7 @@ CommuteMap.prototype.destroy = function() {
   this.observeShowcase.stop();
 }
 
-CommuteMap.prototype.callMapBoundsChanged = function (primaryBounds) {
+CommuteMap.prototype.callMapBoundsChanged = _.debounce(function (primaryBounds) {
   var bounds = this.instance.getBounds();
   // get corners
   var ne = bounds.getNorthEast()
@@ -290,9 +288,26 @@ CommuteMap.prototype.callMapBoundsChanged = function (primaryBounds) {
       }
     }
   }, primaryBounds);
-}
+}, 300);
+
 CommuteMap.prototype.startObservingShowcase = function(filter) {
+  if (!filter) {
+    filter = {};
+  }
   var self = this;
+  this.removeShowcaseMarkers();
+  this.collection.remove({});
+
+  _.each(this.markers, function (marker) {
+    _.each(marker.markerDatas, function(data) {
+      self.collection.insert(data);
+    });
+  });
+  var showcaseMarkers = this.collection.find(filter, this.options.showcaseQuery).fetch();
+  _.each(showcaseMarkers, function(marker) {
+    self.addShowcaseMarker(marker);
+  });
+  /*
   if (this.observeShowcase) {
     this.observeShowcase.stop();
     _.each(this.showcaseMarkers, function(marker) {
@@ -312,7 +327,7 @@ CommuteMap.prototype.startObservingShowcase = function(filter) {
         _.extend({_id: id}, fields)
       );
     }
-  });
+  });*/
 }
 
 CommuteMap.prototype.initClusterer = function() {
@@ -397,65 +412,69 @@ CommuteMap.prototype.zoomOut = function() {
 
 CommuteMap.prototype.addMarker = function(markerProperties) {
   var self = this;
-  _.defer(function() {
-    if (self.options.mergeMarkers) {
-      // check if a marker was added on same position
-      var pairedCoordinates = markerProperties.pairedCoordinates;
-      if (self.markers[pairedCoordinates]) {
-        self.markers[pairedCoordinates].markerIDs.push(markerProperties._id);
-      } else {
-        self.createMarker(markerProperties);
-      }
-
-      // show number of submarkers
-      var number = self.markers[pairedCoordinates].markerIDs.length;
-      self.markers[pairedCoordinates].set('labelContent', number.toString());
-      if (number > 9) {
-        self.markers[pairedCoordinates].set('labelAnchor', new google.maps.Point(6, 7));
-      }
+ if (self.options.mergeMarkers) {
+    // check if a marker was added on same position
+    var pairedCoordinates = markerProperties.pairedCoordinates;
+    if (self.markers[pairedCoordinates]) {
+      self.markers[pairedCoordinates].markerIDs.push(markerProperties._id);
+      self.markers[pairedCoordinates].markerDatas.push(markerProperties);
     } else {
       self.createMarker(markerProperties);
     }
-  });
+
+    // show number of submarkers
+    var number = self.markers[pairedCoordinates].markerIDs.length;
+    self.markers[pairedCoordinates].set('labelContent', number.toString());
+    if (number > 9) {
+      self.markers[pairedCoordinates].set('labelAnchor', new google.maps.Point(6, 7));
+    }
+  } else {
+    self.createMarker(markerProperties);
+  }
 }
 
-CommuteMap.prototype.removeMarkers = function() {
-  _.each(this.markers, function(marker) {
+CommuteMap.prototype.removeMarkers = function(protectSelectedMarker) {
+  var self = this;
+  _.each(this.markers, function(marker, key) {
+    if (protectSelectedMarker && self.selectedMarker === marker) {
+      return;
+    }
     marker.setMap(null);
+    delete this.markers[key];
   });
-  this.markers = {};
 }
 
 CommuteMap.prototype.removeMarker = function(markerProperties) {
   var self = this;
-  _.defer(function() {
-    var marker = self.markers[markerProperties.pairedCoordinates];
-    if (marker) {
-      var index = marker.markerIDs.indexOf(markerProperties._id);
-      if (index > -1) {
-        marker.markerIDs.splice(index, 1);
-        // update number of flats in marker
-        var numberOfMarkerIDs = marker.markerIDs.length;
-        marker.set('labelContent', numberOfMarkerIDs.toString());
-        if (numberOfMarkerIDs < 10) {
-          marker.set('labelAnchor', new google.maps.Point(3, 7));
-        }
 
-        // remove Marker if empty
-        if (marker.markerIDs.length == 0) {
-          // hide route if marker was selected
-          if (marker === self.selectedMarker) {
-            self.deselectSelectedMarker();
-            self.hideRoute();
-          }
-          marker.setMap(null);
-          // remove marker from clusterer
-          self.markerClusterer.removeMarker(marker);
-          delete self.markers[markerProperties.pairedCoordinates];
+  var marker = self.markers[markerProperties.pairedCoordinates];
+  if (marker) {
+    var index = marker.markerIDs.indexOf(markerProperties._id);
+    if (index > -1) {
+      marker.markerIDs.splice(index, 1);
+      marker.markerDatas.splice(index, 1);
+      // update number of flats in marker
+      var numberOfMarkerIDs = marker.markerIDs.length;
+      marker.set('labelContent', numberOfMarkerIDs.toString());
+      if (numberOfMarkerIDs < 10) {
+        marker.set('labelAnchor', new google.maps.Point(3, 7));
+      }
+
+      // remove Marker if empty
+      if (marker.markerIDs.length == 0) {
+        // hide route if marker was selected
+        if (marker === self.selectedMarker) {
+          self.deselectSelectedMarker();
+          self.hideRoute();
         }
+        marker.setMap(null);
+        // remove marker from clusterer
+        self.markerClusterer.removeMarker(marker);
+        delete self.markers[markerProperties.pairedCoordinates];
       }
     }
-  });
+  }
+
 }
 
 CommuteMap.prototype.createMarker = function(options) {
@@ -465,6 +484,7 @@ CommuteMap.prototype.createMarker = function(options) {
     map: this.instance,
     pairedCoordinates: options.pairedCoordinates,
     markerIDs: [options._id],
+    markerDatas: [options],
     iconScale: this.options.markerStyles.default.scale,
     icon: this.options.markerStyles.default,
     labelClass: 'gmaps-marker',
@@ -700,6 +720,10 @@ CommuteMap.prototype.addShowcaseMarker = function(marker) {
 }
 
 CommuteMap.prototype.removeShowcaseMarkers = function(id) {
+  //var self = this;
+  //_.each(this.showcaseMarkers, function(marker) {
+  this.callbacks.showcaseMarkerRemoved({});
+  //});
   this.showcaseMarkers = {};
 }
 

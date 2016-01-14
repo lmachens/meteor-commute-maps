@@ -25,20 +25,6 @@
   text-align: center;
 }
 
-.invertedCircleToggle {
-  position: absolute;
-  left: 10px;
-  top: 100px;
-  z-index: 10;
-  background-color: rgba(255, 255, 255, 0.7);
-  font-size: 20px;
-  cursor: pointer;
-  border: 1px solid rgba(0,0,0, 0.3);
-  width: 30px;
-  height: 30px;
-  text-align: center;
-}
-
 .commuteBox {
   position: absolute;
   top: 10px;
@@ -57,11 +43,11 @@
   cursor: pointer;
 }
 
-.travelModes a.active {
+.commuteBox a.active {
   background-color: lightgreen;
 }
 
-.travelModes a.active:hover {
+.commuteBox a.active:hover {
   background-color: darkseagreen;
 }
 

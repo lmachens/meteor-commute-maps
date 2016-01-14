@@ -19,24 +19,24 @@
         {{travelModesLabel}}
       </div>
       <div class="btn-group travelModes">
-        <a data-travel-mode="DRIVING" class="btn btn-default" href="#">
-          <i class="fa fa-car fa-lg"></i>
+        <a data-travel-mode="DRIVING" class="btn btn-default btn-sm" href="#">
+          <i class="fa fa-car"></i>
         </a>
-        <a data-travel-mode="TRANSIT" class="btn btn-default" href="#">
-          <i class="fa fa-train fa-lg"></i>
+        <a data-travel-mode="TRANSIT" class="btn btn-default btn-sm" href="#">
+          <i class="fa fa-train"></i>
         </a>
-        <a data-travel-mode="WALKING" class="btn btn-default" href="#">
-          <i class="fa fa-male fa-lg"></i>
+        <a data-travel-mode="WALKING" class="btn btn-default btn-sm" href="#">
+          <i class="fa fa-male"></i>
         </a>
-        <a data-travel-mode="BICYCLING" class="btn btn-default" href="#">
-          <i class="fa fa-bicycle fa-lg"></i>
+        <a data-travel-mode="BICYCLING" class="btn btn-default btn-sm" href="#">
+          <i class="fa fa-bicycle"></i>
         </a>
       </div>
+      <a id="toggleInvertedCircle-{{name}}" class="btn btn-default btn-sm invertedCircleToggle {{#if isInvertedCircleVisible}}active{{/if}}">
+        <i class="fa fa-circle-o"></i> {{toggleInvertedCircleLabel}}
+      </a>
     </div>
 
-    <div id="toggleInvertedCircle-{{name}}" class="invertedCircleToggle">
-      <i class="fa fa-circle-o"></i>
-    </div>
     {{/unless}}
   </div>
 </template>

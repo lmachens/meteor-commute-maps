@@ -143,14 +143,15 @@ CommuteMaps = {
   }
 }
 
+Template.commuteMaps.onCreated(function() {
+  this.initialized = new ReactiveVar(false);
+})
 Template.commuteMaps.onRendered(function() {
   if (! this.data.name) {
     throw new Meteor.Error("CommuteMaps - Missing argument: name");
   }
 
   var self = this;
-  var initialized = new ReactiveVar(false);
-
   var initCommuteMaps = function() {
     var canvas = document.getElementById('map-' + self.data.name);
       self._map = CommuteMaps.create({
@@ -165,7 +166,7 @@ Template.commuteMaps.onRendered(function() {
       // set commute box depending on options
       var travelMode = self._map.getTravelMode();
       $('a[data-travel-mode="' + travelMode + '"]').addClass('active');
-      initialized.set(true);
+      self.initialized.set(true);
   }
 
   self.autorun(function(runFunc) {
@@ -218,7 +219,7 @@ Template.commuteMaps.onRendered(function() {
   };
 
   self.autorun(function(runFunc) {
-    if (initialized.get()) {
+    if (self.initialized.get()) {
       // call it to react to dependencies
       var data = Template.currentData();
 
@@ -280,7 +281,6 @@ Template.commuteMaps.onRendered(function() {
         oldData.labels = data.labels;
       }
     }
-
   });
 
   var rangeSliderValue = Session.get(this.data.name + '-rangeSliderValue');
@@ -324,6 +324,19 @@ Template.commuteMaps.helpers({
       return 'Show All Markers';
     }
     return this.labels.showAllMarkersLabel;
+  },
+  toggleInvertedCircleLabel: function() {
+    // Default label
+    if (!this.labels || typeof this.labels.toggleInvertedCircleLabel === 'undefined') {
+      return 'Distance';
+    }
+    return this.labels.toggleInvertedCircleLabel;
+  },
+  isInvertedCircleVisible: function() {
+    var instance = Template.instance();
+    if (instance.initialized.get()) {
+      return instance._map.boundsMode.get() === 'byDistance';
+    }
   }
 });
 

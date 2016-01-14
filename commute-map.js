@@ -70,6 +70,8 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
     enterAddressLabel: 'Enter Address'
   });
   this.options = options;
+  this.boundsMode = new ReactiveVar(options.boundsMode);
+
   this.options.boundsByDistanceStyle = _.defaults(options.boundsByDistanceStyle, {
     stroke_weight: 3,
     stroke_color: '#4E87B6',
@@ -125,7 +127,7 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
 
   // listens when map changes location or zoom
   this.instance.addListener('bounds_changed', function() {
-    var primaryBounds = options.boundsMode !== 'byDistance';
+    var primaryBounds = self.boundsMode.get() !== 'byDistance';
     self.callMapBoundsChanged(primaryBounds);
 
     // check if inverted circle is still in bounds
@@ -136,7 +138,7 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
   });
 
   this.instance.addListener('zoom_changed', function() {
-    if (options.boundsMode !== 'byDistance') {
+    if (self.boundsMode.get() !== 'byDistance') {
       return;
     }
     var visible = this.getZoom() > options.boundsModeZoomThreshhold;
@@ -156,7 +158,7 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
   if (options.showCenterMarker) {
     this.centerMarker = new InvertedCircle({
       map: this.instance,
-      visible: options.boundsMode === 'byDistance' && this.instance.getZoom() > options.boundsModeZoomThreshhold,
+      visible: self.boundsMode.get() === 'byDistance' && this.instance.getZoom() > options.boundsModeZoomThreshhold,
       center: new google.maps.LatLng(options.center),
       radius: options.distanceRadius,
       draggable: true,
@@ -168,7 +170,7 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
       center_icon: options.centerMarkerStyle,
       enterAddressLabel: options.enterAddressLabel,
       position_changed_event: _.throttle(function(position) {
-        var primaryBounds = self.options.boundsMode === 'byDistance';
+        var primaryBounds = self.boundsMode.get() === 'byDistance';
         self.callbacks.distanceBoundsChanged({
           $geoWithin: {
             $centerSphere: [
@@ -180,7 +182,7 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
         self.displayRoute(self.selectedMarker);
       }, 200),
       radius_changed_event: _.throttle(function(radius) {
-        var primaryBounds = self.options.boundsMode === 'byDistance';
+        var primaryBounds = self.boundsMode.get() === 'byDistance';
         var center = self.centerMarker.getCenter();
         self.callbacks.distanceBoundsChanged({
           $geoWithin: {
@@ -378,6 +380,11 @@ CommuteMap.prototype.setCenter = function(center) {
   this.instance.setCenter(center);
   this.centerMarker.setCenter(this.instance.getCenter());
   this.centerMarker.triggerPositionChangedEvent();
+}
+
+CommuteMap.prototype.centerCenterMarker = function() {
+  var center = this.centerMarker.getCenter();
+  this.instance.setCenter(center);
 }
 
 CommuteMap.prototype.zoomIn = function() {
@@ -776,7 +783,7 @@ CommuteMap.prototype.setInvertedCircleVisibility = function(visible) {
   }
 
   if (visible) {
-    this.options.boundsMode = 'byDistance';
+    this.boundsMode.set('byDistance');
     this.centerMarker.triggerPositionChangedEvent();
     // zoom in if it is set to visible and clusterer is visible
     if (this.instance.getZoom() <= this.options.boundsModeZoomThreshhold) {
@@ -784,7 +791,7 @@ CommuteMap.prototype.setInvertedCircleVisibility = function(visible) {
     }
     this.instance.setCenter(this.centerMarker.getCenter());
   } else {
-    this.options.boundsMode = 'byMap';
+    this.boundsMode.set('byMap');
     this.callMapBoundsChanged(true);
   }
   this.centerMarker.setVisible(visible);

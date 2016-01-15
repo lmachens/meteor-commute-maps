@@ -187,7 +187,10 @@ Template.commuteMaps.onRendered(function() {
         self.data.options.commuteMode = 'byDistance';
       }
 
-      self.data.options.enterAddressLabel = self.data.labels.enterAddressLabel;
+      if (self.data.labels) {
+        self.data.options.enterAddressLabel = self.data.labels.enterAddressLabel;
+      }
+
       if (self.data.options.center &&
         self.data.options.center.city &&
         self.data.options.center.country) {

@@ -71,12 +71,17 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
   });
   this.options = options;
   this.boundsMode = new ReactiveVar(options.boundsMode);
-
+  if (!options.boundsByDistanceStyle) {
+    options.boundsByDistanceStyle  = {};
+  }
   this.options.boundsByDistanceStyle = _.defaults(options.boundsByDistanceStyle, {
     stroke_weight: 3,
     stroke_color: '#4E87B6',
     resize_leftright: '/packages/lmachens_commute-maps/images/resize_leftright.png'
   });
+  if (!options.centerMarkerStyle) {
+    options.centerMarkerStyle  = {};
+  }
   this.options.centerMarkerStyle = _.defaults(options.centerMarkerStyle, {
     url: '/packages/lmachens_commute-maps/images/center.png',
     size: new google.maps.Size(27, 27),
@@ -264,8 +269,8 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
 }
 
 CommuteMap.prototype.destroy = function() {
-  this.observe.stop();
-  this.observeShowcase.stop();
+  //this.observe.stop();
+  //this.observeShowcase.stop();
 }
 
 CommuteMap.prototype.callMapBoundsChanged = _.debounce(function (primaryBounds) {

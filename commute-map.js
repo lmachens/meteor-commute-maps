@@ -889,6 +889,6 @@ CommuteMap.prototype.setLocationByGeocoderResults = function(result) {
     return addressComponent.types.indexOf('country') !== -1;
   });
   if (locality) {
-    this.callbacks.locationChanged(locality.short_name, country.short_name);
+    this.callbacks.locationChanged(locality.long_name, country.short_name);
   }
 }

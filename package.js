@@ -1,6 +1,6 @@
 Package.describe({
   name: 'lmachens:commute-maps',
-  version: '0.1.1',
+  version: '0.1.3',
   // Brief, one-line summary of the package.
   summary: 'Google Maps with commute functions',
   // URL to the Git repository containing the source code for this package.

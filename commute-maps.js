@@ -73,7 +73,10 @@ CommuteMaps = {
       maxZoom: 18,
       center: {lat: 52.5167, lng: 13.3833},
       mapTypeId: google.maps.MapTypeId.ROADMAP,
-      zoomControl: false,
+      zoomControl: true,
+      zoomControlOptions: {
+          position: google.maps.ControlPosition.LEFT_CENTER
+      },
       streetViewControl: false,
       mapTypeControl: false,
       panControl: false,
@@ -226,46 +229,6 @@ Template.commuteMaps.onRendered(function() {
       // call it to react to dependencies
       var data = Template.currentData();
 
-      if (data.highlightedMarkers) {
-        // observe highlighted markers
-        if (self._observeHighlighted) {
-          self._observeHighlighted.stop();
-          // todo delete
-        }
-        self._observeHighlighted = data.highlightedMarkers.observe({
-          removed: function (marker) {
-            if (!self._map.selectedMarker) {
-              self._map.lowlightMarkerByCoordinates(marker.pairedCoordinates);
-            }
-          },
-          added: function(marker, index) {
-            if (!self._map.selectedMarker) {
-              self._map.highlightMarkerByCoordinates(marker.pairedCoordinates);
-            }
-          }
-        });
-      }
-
-      if (!_.isEqual(data.options.center, oldData.options.center) &&
-        data.options.center.city &&
-        data.options.center.country) {
-        var geocoder = new google.maps.Geocoder();
-        geocoder.geocode({
-          address: data.options.center.city + ', ' + data.options.center.country
-        }, function (res, status) {
-          if (status != 'OK') {
-            return;
-          }
-          var location = res[0].geometry.location;
-          self._map.instance.setZoom(data.options.zoom);
-          self._map.setCenter({
-            lat: location.lat(),
-            lng: location.lng()
-          });
-        });
-        oldData.options.center = data.options.center;
-      }
-
       if (!_.isEqual(data.options.showcaseQuery, oldData.options.showcaseQuery)) {
         self._map.options.showcaseQuery = data.options.showcaseQuery;
         self._map.startObservingShowcase();
@@ -307,10 +270,6 @@ Template.commuteMaps.onDestroyed(function() {
     CommuteMaps.maps[this.data.name].destroy();
     delete CommuteMaps.maps[this.data.name];
   }
-
-  if (this._observeHighlighted) {
-    this._observeHighlighted.stop();
-  }
 });
 
 Template.commuteMaps.helpers({
@@ -344,18 +303,6 @@ Template.commuteMaps.helpers({
 });
 
 Template.commuteMaps.events({
-  'click .zoomControls .in': function (e, t) {
-    t._map.zoomIn();
-    if (t.data.options.useGoogleAnalytics) {
-      ga('send', 'event', 'Site: Search', 'User zoomed in');
-    }
-  },
-  'click .zoomControls .out': function (e, t) {
-    t._map.zoomOut();
-    if (t.data.options.useGoogleAnalytics) {
-      ga('send', 'event', 'Site: Search', 'User zoomed out');
-    }
-  },
   'click .showAllMarkers': function(e, t) {
     t._map.callbacks.showHiddenMarkersChanged(e.target.checked);
     if (t.data.options.useGoogleAnalytics) {
@@ -381,5 +328,8 @@ Template.commuteMaps.events({
     if (t.data.options.useGoogleAnalytics) {
       ga('send', 'event', 'Site: Search', 'User toggled Inverted Circle ');
     }
+  },
+  'click .refreshCenter': function(e, t) {
+    t._map.setCenterToMapCenter();
   }
 });

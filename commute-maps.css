@@ -6,23 +6,7 @@
 
 .travelModesTitle {
   font-weight: bold;
-}
-
-.zoomControls {
-  position: absolute;
-  left: 10px;
-  top: 180px;
-  z-index: 10;
-  background-color: rgba(255, 255, 255, 0.7);
-  font-size: 20px;
-  cursor: pointer;
-  border: 1px solid rgba(0,0,0, 0.3);
-}
-
-.zoomControls div {
-  width: 30px;
-  height: 30px;
-  text-align: center;
+  margin-bottom: 5px;
 }
 
 .commuteBox {
@@ -52,6 +36,13 @@
 }
 
 /* ANIMATIONS */
+/* animate center marker
+img[src^="/icons/maps/center.png"] {
+  -webkit-animation: pulse 1s ease 1s 5;
+  -moz-animation: pulse 1s ease 1s 5;
+  animation: pulse 1s ease 1s 5;
+}
+*/
 @-webkit-keyframes pulse {
  40% {
     -webkit-transform: scale(2);

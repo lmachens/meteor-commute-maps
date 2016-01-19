@@ -2,39 +2,34 @@
   <div class="commuteMapsContainer">
     <div id="map-{{name}}" style="width: 100%; height: 100%"></div>
 
-    {{#unless options.hideZoomControls}}
-    <div id="zoomControls-{{name}}" class="zoomControls">
-      <div class="in">
-        <i class="fa fa-plus"></i>
-      </div>
-      <div class="out">
-        <i class="fa fa-minus"></i>
-      </div>
-    </div>
-    {{/unless}}
-
     {{#unless options.hideCommuteBox}}
     <div id="commuteBox-{{name}}" class="commuteBox">
       <div class="travelModesTitle">
         {{travelModesLabel}}
-      </div>
-      <div class="btn-group travelModes">
-        <a data-travel-mode="DRIVING" class="btn btn-default btn-sm" href="#">
-          <i class="fa fa-car"></i>
-        </a>
-        <a data-travel-mode="TRANSIT" class="btn btn-default btn-sm" href="#">
-          <i class="fa fa-train"></i>
-        </a>
-        <a data-travel-mode="WALKING" class="btn btn-default btn-sm" href="#">
-          <i class="fa fa-male"></i>
-        </a>
-        <a data-travel-mode="BICYCLING" class="btn btn-default btn-sm" href="#">
-          <i class="fa fa-bicycle"></i>
+
+        <a id="refreshCenter-{{name}}" class="btn btn-default btn-xs pull-right refreshCenter">
+          <i class="fa fa-briefcase"></i>
         </a>
       </div>
-      <a id="toggleInvertedCircle-{{name}}" class="btn btn-default btn-sm invertedCircleToggle {{#if isInvertedCircleVisible}}active{{/if}}">
-        <i class="fa fa-circle-o"></i> {{toggleInvertedCircleLabel}}
-      </a>
+      <div style="display: inline-block">
+        <div class="btn-group travelModes">
+          <a data-travel-mode="DRIVING" class="btn btn-default btn-sm" href="#">
+            <i class="fa fa-car"></i>
+          </a>
+          <a data-travel-mode="TRANSIT" class="btn btn-default btn-sm" href="#">
+            <i class="fa fa-train"></i>
+          </a>
+          <a data-travel-mode="WALKING" class="btn btn-default btn-sm" href="#">
+            <i class="fa fa-male"></i>
+          </a>
+          <a data-travel-mode="BICYCLING" class="btn btn-default btn-sm" href="#">
+            <i class="fa fa-bicycle"></i>
+          </a>
+        </div>
+        <a id="toggleInvertedCircle-{{name}}" class="btn btn-default btn-sm invertedCircleToggle {{#if isInvertedCircleVisible}}active{{/if}}">
+          <i class="fa fa-circle-o"></i> {{toggleInvertedCircleLabel}}
+        </a>
+      </div>
     </div>
 
     {{/unless}}

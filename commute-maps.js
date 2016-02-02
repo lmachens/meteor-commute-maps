@@ -331,5 +331,6 @@ Template.commuteMaps.events({
   },
   'click .refreshCenter': function(e, t) {
     t._map.setCenterToMapCenter();
+    t._map.centerMarker.openAddressOverlay();
   }
 });

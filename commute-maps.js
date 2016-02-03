@@ -229,12 +229,6 @@ Template.commuteMaps.onRendered(function() {
       // call it to react to dependencies
       var data = Template.currentData();
 
-      if (!_.isEqual(data.options.showcaseQuery, oldData.options.showcaseQuery)) {
-        self._map.options.showcaseQuery = data.options.showcaseQuery;
-        self._map.startObservingShowcase();
-        oldData.options.showcaseQuery = data.options.showcaseQuery;
-      }
-
       if (data.options.styles &&
         !_.isEqual(data.options.styles, oldData.options.styles)) {
         self._map.instance.setOptions({styles: data.options.styles});
@@ -332,5 +326,6 @@ Template.commuteMaps.events({
   'click .refreshCenter': function(e, t) {
     t._map.setCenterToMapCenter();
     t._map.centerMarker.openAddressOverlay();
+    t._map.getMarkerInfosMatrix();
   }
 });

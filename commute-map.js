@@ -68,7 +68,8 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
     boundsModeZoomThreshhold: 11,
     travelMode: 'DRIVING',
     collectionFilters: {},
-    enterAddressLabel: 'Enter Address'
+    enterAddressLabel: 'Enter Address',
+    avoidAddressPopup: false
   });
   this.options = options;
   this.boundsMode = new ReactiveVar(options.boundsMode);
@@ -94,7 +95,7 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
     callbacks = {};
   }
   _.defaults(callbacks, {
-    locationChanged: function(location) {},
+    locationChanged: function(location, country, formattedAddress) {},
     markerSelected: function(marker) {},
     markerDeselected: function(marker) {},
     mapBoundsChanged: function(geospatialQuery, primaryBounds) {},
@@ -162,6 +163,7 @@ CommuteMap = function(instance, collection, options, callbacks, features) {
       resize_leftright: options.boundsByDistanceStyle.resize_leftright,
       center_icon: options.centerMarkerStyle,
       enterAddressLabel: options.enterAddressLabel,
+      avoidAddressPopup: options.avoidAddressPopup,
       locationChanged: function(results) {
         self.setLocationByGeocoderResults(results);
       },
@@ -800,6 +802,22 @@ CommuteMap.prototype.setLocationByGeocoderResults = function(result) {
     return addressComponent.types.indexOf('country') !== -1;
   });
   if (locality) {
-    this.callbacks.locationChanged(locality.long_name, country.short_name);
+    this.callbacks.locationChanged(locality.long_name, country.short_name, result.formatted_address);
   }
+}
+
+CommuteMap.prototype.triggerResizeEvent = function() {
+  google.maps.event.trigger(this.instance, 'resize');
+}
+
+CommuteMap.prototype.getGeocodePosition = function(callback) {
+  this.geocoder.geocode({
+    latLng: this.centerMarker.getCenter()
+  }, function(responses) {
+    if (responses && responses.length > 0) {
+      callback(responses[0].formatted_address);
+    } else {
+      callback(false);
+    }
+  });
 }

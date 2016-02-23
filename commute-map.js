@@ -419,17 +419,9 @@ CommuteMap.prototype.updateMarkerLabel = function(id, labelNumber) {
 
 CommuteMap.prototype.createMarker = function(markerProperties) {
   var self = this;
-  var lat, lng;
-  if (_.isArray(markerProperties.position)) {
-    lat = markerProperties.position[0].coordinates[1];
-    lng = markerProperties.position[0].coordinates[0];
-  } else {
-    lat = markerProperties.position.coordinates[1];
-    lng = markerProperties.position.coordinates[0];
-  }
 
   var markerWithLabel = new MarkerWithLabel({
-    position: new google.maps.LatLng(lat, lng),
+    position: new google.maps.LatLng(markerProperties.lat, markerProperties.lng),
     map: this.instance,
     pairedCoordinates: markerProperties._id,
     labelNumber: markerProperties.labelNumber,
@@ -791,7 +783,7 @@ CommuteMap.prototype.setLocationByGeocoderResults = function(result) {
   } else if (firstAddressComponentTypes.indexOf('postal_code') !== -1) {
     this.instance.setZoom(14);
   } else {
-    this.instance.setZoom(13);
+    this.instance.setZoom(12);
   }
 
   this.centerMarker.triggerPositionChangedEvent(true);

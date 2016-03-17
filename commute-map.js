@@ -698,7 +698,7 @@ CommuteMap.prototype.getMarkerInfosMatrix = _.debounce(function(showcaseMarkers)
   this.distanceMatrixService.getDistanceMatrix({
     origins: [this.centerMarker.position],
     destinations: _.map(showcaseMarkers, function(marker) {
-      return new google.maps.LatLng(marker.position.coordinates[1], marker.position.coordinates[0]);
+      return new google.maps.LatLng(marker.lat, marker.lng);
     }),
     travelMode: google.maps.TravelMode[this.options.travelMode]
   }, function (response, status) {
@@ -794,7 +794,9 @@ CommuteMap.prototype.setLocationByGeocoderResults = function(result) {
     return addressComponent.types.indexOf('country') !== -1;
   });
   if (locality) {
-    this.callbacks.locationChanged(locality.long_name, country.short_name, result.formatted_address);
+    var lat = result.geometry.location.lat();
+    var lng = result.geometry.location.lng();
+    this.callbacks.locationChanged(locality.long_name, country.short_name, result.formatted_address, lat, lng);
   }
 }
 
